@@ -76,6 +76,7 @@ enum RenderDemo {
         let state = demoState()
         state.permissionRows = [
             PermissionRow(permission: .fullDiskAccess, status: .granted),
+            PermissionRow(permission: .filesAndFolders, status: .granted),
             PermissionRow(permission: .appManagement, status: .missing, checking: true),
         ]
         state.sheet = .permissions

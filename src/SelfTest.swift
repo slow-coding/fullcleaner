@@ -113,6 +113,7 @@ enum SelfTest {
         setenv("FULLCLEANER_NO_TCC", "1", 1)
         setenv("FULLCLEANER_SELFTEST", "1", 1)
         setenv("FULLCLEANER_PKG_LIST", "com.example.fake.pkg\ncom.other.pkg", 1)
+        setenv("FULLCLEANER_FAKE_FDA", "1", 1)     // 默认按"已授权"跑；未授权分支在 checkScope 里单独验
         Remover.trashHandler = { url in
             let trash = URL(fileURLWithPath: Paths.trash)
             try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: true)
@@ -167,11 +168,12 @@ enum SelfTest {
 
     private static func checkPermissions() {
         section("权限")
-        check(Permission.allCases.count == 2, "只列两项真正用到的权限（完全磁盘访问 / App 管理）")
+        check(Permission.allCases.count == 3, "面板三项：完全磁盘访问、文件与文件夹（由前者覆盖）、App 管理")
         check(Permissions.all().allSatisfy { !$0.permission.purpose.isEmpty }, "每项都写了用途")
         check(Permissions.all().allSatisfy { $0.permission.settingsURL.hasPrefix("x-apple.systempreferences:") },
               "每项都能一键打开系统设置里对应的那一页")
         check(Permissions.status(.fullDiskAccess) == .missing, "样本环境读不到权限数据库 → 完全磁盘访问判为未授权")
+        check(Permissions.status(.filesAndFolders) == .missing, "文件与文件夹那一行跟着完全磁盘访问一起变化")
         check(Permissions.status(.appManagement) == .unknown, "完全磁盘访问没给时，App 管理标为「检测不了」而不是乱猜")
     }
 
@@ -253,6 +255,16 @@ enum SelfTest {
                                   bytes: 10, kind: .groupContainer, match: .appGroup)
         sharedItem.sharedWith = registry.claimants(of: "group.com.example.shared", excluding: sharedA)
         check(Planner.reject(sharedItem, app: sharedA)?.gate == "不误伤", "共用容器：闸门拦下")
+
+        // 没有完全磁盘访问时的策略：不去碰会弹窗的位置
+        unsetenv("FULLCLEANER_FAKE_FDA")
+        let noFDA = ResidueScanner.residues(for: fake, measure: true)
+        check(!noFDA.contains { $0.kind == .iCloudContainer }, "没给完全磁盘访问：iCloud Drive 整段不碰（不弹窗）")
+        check(noFDA.contains { $0.kind == .container }, "容器仍然列出来（能删，只是量不了体积）")
+        check(noFDA.first { $0.kind == .container }?.bytes == 0, "没给完全磁盘访问：容器体积留空，不进去走一遍")
+        setenv("FULLCLEANER_FAKE_FDA", "1", 1)
+        check(ResidueScanner.residues(for: fake, measure: true).contains { $0.kind == .iCloudContainer },
+              "给了完全磁盘访问：iCloud 照常扫")
     }
 
     // MARK: - 闸门

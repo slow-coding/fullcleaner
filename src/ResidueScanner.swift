@@ -19,10 +19,18 @@ enum ResidueScanner {
     static func residues(for app: AppItem, measure: Bool = true, stop: StopFlag? = nil) -> [Hit] {
         var hits: [Hit] = []
         let matcher = Matcher(app: app)
+        let canTouchProtected = Permissions.fullDiskAccessGranted
+
         func add(_ root: String, _ kind: ResidueKind, _ nameMatching: Bool,
                  stripSuffix: Bool = false, prefixName: Bool = false, label: String? = nil) {
             collect(&hits, root: root, kind: kind, matcher: matcher, stop: stop, measure: measure,
+                    canTouchProtected: canTouchProtected,
                     nameMatching: nameMatching, stripSuffix: stripSuffix, prefixName: prefixName, label: label)
+        }
+
+        // 没有完全磁盘访问时：iCloud Drive 一碰就弹窗，整段跳过（不打扰用户）
+        if canTouchProtected {
+            add(Paths.library + "/Mobile Documents", .iCloudContainer, true)
         }
 
         // 用户级
@@ -41,7 +49,6 @@ enum ResidueScanner {
         add(Paths.library + "/Logs/DiagnosticReports", .logs, true, prefixName: true, label: "崩溃日志")
         add(Paths.library + "/Autosave Information", .savedState, true)
         add(Paths.library + "/LaunchAgents", .launchAgent, false, stripSuffix: true)
-        add(Paths.library + "/Mobile Documents", .iCloudContainer, true)
 
         // 系统级（需要管理员）
         add(Paths.system("/Library/Application Support"), .systemLibrary, true)
@@ -65,7 +72,8 @@ enum ResidueScanner {
     // MARK: - 目录扫描
 
     private static func collect(_ hits: inout [Hit], root: String, kind: ResidueKind, matcher: Matcher,
-                                stop: StopFlag?, measure: Bool, nameMatching: Bool, stripSuffix: Bool = false,
+                                stop: StopFlag?, measure: Bool, canTouchProtected: Bool,
+                                nameMatching: Bool, stripSuffix: Bool = false,
                                 prefixName: Bool = false, label: String? = nil) {
         let manager = FileManager.default
         guard manager.fileExists(atPath: root) else { return }
@@ -81,8 +89,13 @@ enum ResidueScanner {
             var note = label.map { "\($0)：\(how.explain)" } ?? how.explain
             if kind == .groupContainer { note += " 这个目录由同开发者的多个应用共享，先确认里面没有别的应用在用。" }
             if kind == .iCloudContainer { note += " 删掉会同步到你登录同一 Apple ID 的其他设备。" }
+            let needsFDA = (kind == .container || kind == .groupContainer || kind == .iCloudContainer)
+            let canMeasure = measure && (!needsFDA || canTouchProtected)
+            if needsFDA && !canTouchProtected {
+                note += " 体积要完全磁盘访问才能量（现在没给，所以留空）。"
+            }
             hits.append(Hit(path: path, kind: kind, how: how,
-                            bytes: measure ? Sizer.bytes(of: path, stop: stop) : 0,
+                            bytes: canMeasure ? Sizer.bytes(of: path, stop: stop) : 0,
                             note: note, modified: Sizer.modified(of: path)))
         }
     }

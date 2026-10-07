@@ -7,6 +7,7 @@ import AppKit
 
 enum Permission: String, CaseIterable, Identifiable {
     case fullDiskAccess
+    case filesAndFolders
     case appManagement
 
     var id: String { rawValue }
@@ -14,6 +15,7 @@ enum Permission: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .fullDiskAccess: return "完全磁盘访问"
+        case .filesAndFolders: return "文件与文件夹（音乐 / 影片 / 图片 / 文稿 / iCloud Drive）"
         case .appManagement: return "App 管理"
         }
     }
@@ -22,6 +24,8 @@ enum Permission: String, CaseIterable, Identifiable {
         switch self {
         case .fullDiskAccess:
             return "读取其他应用的容器内容：核对「按名字匹配」的目录到底是不是它的，以及量残留体积。没有它，macOS 会逐次弹窗，或者读不全。"
+        case .filesAndFolders:
+            return "扫到这些位置时 macOS 会弹窗问一次。给了完全磁盘访问就一并覆盖，不会再有零散弹窗；没给就整段跳过，不打扰你。"
         case .appManagement:
             return "把其他应用的本体移到废纸篓。macOS 13 起，改动别的应用包需要这一项。"
         }
@@ -30,14 +34,15 @@ enum Permission: String, CaseIterable, Identifiable {
     /// 系统设置里对应的面板。
     var settingsURL: String {
         switch self {
-        case .fullDiskAccess: return "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
+        case .fullDiskAccess, .filesAndFolders: return "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
         case .appManagement: return "x-apple.systempreferences:com.apple.preference.security?Privacy_AppBundles"
         }
     }
 
     var settingsHint: String {
         switch self {
-        case .fullDiskAccess: return "系统设置 → 隐私与安全性 → 完全磁盘访问权限 → 打开 FullCleaner 的开关"
+        case .fullDiskAccess, .filesAndFolders:
+            return "系统设置 → 隐私与安全性 → 完全磁盘访问权限 → 打开 FullCleaner 的开关（这一项管住上面所有位置）"
         case .appManagement: return "系统设置 → 隐私与安全性 → App 管理 → 打开 FullCleaner 的开关"
         }
     }
@@ -72,6 +77,8 @@ enum Permissions {
         switch permission {
         case .fullDiskAccess:
             return canReadTCCDatabase() ? .granted : .missing
+        case .filesAndFolders:
+            return canReadTCCDatabase() ? .granted : .missing   // 完全磁盘访问覆盖它
         case .appManagement:
             // 权限数据库本身受完全磁盘访问保护；读不到就只能说不确定。
             guard canReadTCCDatabase() else { return .unknown }
@@ -88,6 +95,13 @@ enum Permissions {
     }
 
     static var allGranted: Bool { all().allSatisfy { $0.status == .granted } }
+
+    /// 扫描时用：没有完全磁盘访问就不去碰会触发系统弹窗的位置。
+    /// 自检里用 FULLCLEANER_FAKE_FDA=1 模拟"已授权"，好把两种分支都验到。
+    static var fullDiskAccessGranted: Bool {
+        if ProcessInfo.processInfo.environment["FULLCLEANER_FAKE_FDA"] == "1" { return true }
+        return canReadTCCDatabase()
+    }
 
     /// 还差哪几项（主界面上提示用）。
     static var missingTitles: [String] {

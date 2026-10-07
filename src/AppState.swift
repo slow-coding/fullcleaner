@@ -54,6 +54,11 @@ final class AppState: ObservableObject {
         guard !started, !suppressAutoStart else { return }
         started = true
         refreshPermissions()
+        // 第一次打开先把权限面板摆出来：缺权限会直接影响扫描与卸载，讲清楚再干活
+        if UserDefaults.standard.bool(forKey: "permissionsPromptShown") == false {
+            UserDefaults.standard.set(true, forKey: "permissionsPromptShown")
+            if !Permissions.allGranted { sheet = .permissions }
+        }
         scan()
     }
 

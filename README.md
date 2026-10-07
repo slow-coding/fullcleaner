@@ -63,17 +63,20 @@ Deletion goes to the Trash by default; root-owned items (App Store app bundles, 
 
 ## Permissions
 
-FullCleaner asks for exactly two system permissions, each with its own button in the in-app **权限 / Permissions** panel (green check when granted, one-click request when not):
+The app opens a **Permissions** panel on first launch (and any time from the button in the header — a green dot means everything is granted). Each row shows its own state: a green check when granted, an orange marker plus a one-click **去申请 / Request** button when not. No permission is ever requested by surprise in the middle of a scan.
 
 | Permission | Why it is needed |
 | --- | --- |
-| **Full Disk Access** | Read inside other apps' containers — that is how a folder named after an app is verified to actually belong to it, and how leftover sizes are measured. Without it macOS prompts repeatedly or reads come back incomplete. |
+| **Full Disk Access** | Read inside other apps' containers — that is how a folder named after an app is verified to actually belong to it, and how leftover sizes are measured. |
+| **Files and Folders** (Music / Movies / Pictures / Documents / iCloud Drive) | Covered by Full Disk Access: with it, macOS stops asking; without it, FullCleaner skips those locations entirely instead of triggering a dialog. |
 | **App Management** | Move another app's bundle to the Trash. Since macOS 13, modifying a bundle you do not own requires it. |
 
 It does **not** ask for Accessibility or Input Monitoring: it never simulates keystrokes and never reads what you type.
 
+Without Full Disk Access the tool still works, it just knows less: iCloud Drive is not scanned, container sizes show as `—`, and container contents are left alone (that is where macOS would otherwise prompt).
+
 ```sh
-fullcleaner --permissions          # status of both, exit code 0 when both are granted
+fullcleaner --permissions          # status of all three rows, exit code 0 when the real grants are in place
 ```
 
 ![Permissions panel](docs/screenshot-permissions.png)
