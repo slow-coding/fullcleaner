@@ -15,6 +15,7 @@ GREP_EXCLUDES=(--exclude-dir=.git --exclude-dir=build --exclude='*.png' --exclud
 
 ok()  { printf '  ✓ %s\n' "$1"; PASS=$((PASS + 1)); }
 bad() { printf '  ✗ %s\n' "$1"; FAIL=$((FAIL + 1)); }
+skip() { printf '  – %s\n' "$1"; }
 section() { printf '\n%s\n' "$1"; }
 
 # 命中为空的检查
@@ -77,24 +78,32 @@ if swiftc -O -swift-version 5 -parse-as-library -warnings-as-errors \
 else
   bad "编译有告警或错误"; head -6 /tmp/$NAME-audit-warn.txt | sed 's/^/      /'
 fi
-if [ -x "build/$DISPLAY.app/Contents/MacOS/$NAME" ]; then
+BUILT=0
+[ -x "build/$DISPLAY.app/Contents/MacOS/$NAME" ] && BUILT=1
+if [ "$BUILT" = "1" ]; then
   # 通用二进制会让 otool 打两份（带 "(architecture …)" 行），先滤掉这些头
   # 通用二进制下 otool 会把两个架构各打一份，还夹着 "<路径> (architecture x86_64):" 这样的头行
   NON_SYSTEM=$(otool -L "build/$DISPLAY.app/Contents/MacOS/$NAME" | awk '$1 ~ /^\// {print $1}' \
                  | grep -vE '^/System/Library/|^/usr/lib/' || true)
   expect_empty "只链接系统框架（没有第三方 dylib）" "$NON_SYSTEM"
 else
-  bad "还没构建（先跑 ./build.sh）"
+  skip "还没构建，跳过二进制检查（先跑 ./build.sh）"
 fi
 
 # ---------- 6. 运行安全（这工具会删文件，最重要的一节）----------
 section "6. 运行安全"
-SELFTEST=$(./build/$DISPLAY.app/Contents/MacOS/$NAME --selftest 2>&1 || true)
+SELFTEST=""
+[ "$BUILT" = "1" ] && SELFTEST=$(./build/$DISPLAY.app/Contents/MacOS/$NAME --selftest 2>&1 || true)
+if [ "$BUILT" != "1" ]; then
+  skip "自检：未构建，跳过"
+else
 RESULT=$(printf '%s' "$SELFTEST" | grep -oE '结果：[0-9]+ 通过 · [0-9]+ 失败' | tail -1)
 FAILED=$(printf '%s' "$RESULT" | grep -oE '[0-9]+ 失败' | grep -oE '^[0-9]+' || echo "")
 if [ -n "$RESULT" ] && [ "${FAILED:-1}" = "0" ]; then ok "自检通过：$RESULT"; else bad "自检没通过：${RESULT:-没拿到结果}"; fi
 printf '%s' "$SELFTEST" | grep -q '每一条都在样本目录里' && ok "自检里有「每条被删路径都在样本目录里」这条横断断言" || bad "缺这条断言"
+# （下面两条同属自检结果，未构建时已在上面跳过）
 printf '%s' "$SELFTEST" | grep -q '带引号与空格的路径删对了' && ok "自检验证了删除路径的引号转义（不会误删）" || bad "缺注入转义断言"
+fi
 grep -q 'trashItem' src/Remover.swift && ok "默认走废纸篓（FileManager.trashItem）" || bad "没看到废纸篓路径"
 grep -q 'confirmed else' src/App.swift && ok "命令行卸载必须显式 --yes" || bad "命令行卸载没有 --yes 门"
 HITS=$(grep -rInE 'AXIsProcessTrusted|kTCCService|CNContactStore|EKEventStore|SFSpeechRecognizer' src/ 2>/dev/null)
@@ -113,7 +122,11 @@ for shot in $(grep -oE 'docs/[a-zA-Z0-9._-]+\.png' README.md | sort -u); do
   [ -f "$shot" ] || { MISSING=1; echo "      缺文件：$shot"; }
 done
 [ "$MISSING" -eq 0 ] && ok "README 里引用的截图都存在" || bad "README 引用了不存在的截图"
-./build/$DISPLAY.app/Contents/MacOS/$NAME --help 2>&1 | grep -q '用法' && ok "--help 有用法说明" || bad "--help 没有输出"
+if [ "$BUILT" = "1" ]; then
+  ./build/$DISPLAY.app/Contents/MacOS/$NAME --help 2>&1 | grep -q '用法' && ok "--help 有用法说明" || bad "--help 没有输出"
+else
+  skip "--help：未构建，跳过"
+fi
 
 # ---------- 8. 发布条件 ----------
 section "8. 发布条件"
@@ -122,7 +135,7 @@ if [ -d .git ]; then
   LOCAL_ID=$(git config --local user.email 2>/dev/null || true)
   LOCAL_NAME=$(git config --local user.name 2>/dev/null || true)
   if [ -z "$LOCAL_ID" ]; then
-    bad "这个仓库还没设身份（git config --local user.name/email 设成你的 GitHub noreply 地址）"
+    skip "本地没设仓库身份（提交作者沿用全局配置）；真正的门是下面那条「提交作者是否干净」"
   elif printf '%s %s' "$LOCAL_NAME" "$LOCAL_ID" | grep -qE "$PRIVATE_PATTERN"; then
     bad "仓库身份像真实邮箱：${LOCAL_ID}（改成 GitHub 的 noreply 地址）"
   else
