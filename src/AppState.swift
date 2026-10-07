@@ -13,6 +13,8 @@ final class AppState: ObservableObject {
     @Published var lang: Lang = .en
     @Published var hovered: String?
     @Published private(set) var icons: [String: NSImage] = [:]
+    /// 卸载前把图标存一份给结果页用：应用删掉之后就从 apps 里没了，再取就只剩通用图标
+    @Published private(set) var resultIcons: [String: NSImage] = [:]
     @Published private(set) var visibleRows: [AppItem] = []
     @Published var sortKey: SortKey = SortKey(rawValue: UserDefaults.standard.string(forKey: "sortKey") ?? "") ?? .size {
         didSet { UserDefaults.standard.set(sortKey.rawValue, forKey: "sortKey"); refreshVisibleRows() }
@@ -141,8 +143,13 @@ final class AppState: ObservableObject {
         icons = cache
     }
 
-    /// 出图用：把演示数据的图标也先缓存好。
-    func cacheIconsForDemo() { cacheIcons(for: apps) }
+    /// 出图用：把演示数据的图标也先缓存好；结果页那份也要有。
+    func cacheIconsForDemo() {
+        cacheIcons(for: apps)
+        resultIcons = Dictionary(uniqueKeysWithValues: apps.compactMap { app in
+            icons[app.path].map { (app.path, $0) }
+        })
+    }
 
     func icon(for app: AppItem) -> NSImage {
         icons[app.path] ?? NSWorkspace.shared.icon(forFile: app.icon)
@@ -262,6 +269,9 @@ final class AppState: ObservableObject {
     func runUninstall() {
         let items = checkedPlan
         let chosen = selectedApps
+        resultIcons = Dictionary(uniqueKeysWithValues: chosen.compactMap { app in
+            icons[app.path].map { (app.path, $0) }
+        })
         let skipList = skipped
         sheet = .running
         progressLine = t("Preparing…")

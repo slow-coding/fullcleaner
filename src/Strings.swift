@@ -116,6 +116,8 @@ enum Str {
         "Nothing to remove": "没有要移除的东西",
         "%@ went to the Trash — you can drag it back": "%@ 进了废纸篓，随时可以拖回来",
         "%d items were left alone: %@": "有 %d 项没动：%@",
+        "1 item removed": "已移除 1 项",
+        "1 item was left alone: %@": "有 1 项没动：%@",
         "Open Trash": "打开废纸篓",
         "Open log": "打开日志",
         "Scanning installed apps…": "正在扫描已安装的应用…",

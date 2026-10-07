@@ -560,7 +560,8 @@ struct ResultSheet: View {
                 .opacity(state.resultPulse ? 1 : 0)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(removed > 0 ? t("%d items removed", removed) : t("Nothing to remove"))
+                    Text(removed == 0 ? t("Nothing to remove")
+                      : (removed == 1 ? t("1 item removed") : t("%d items removed", removed)))
                         .font(.system(size: 19, weight: .semibold))
                     Text(bytes > 0 ? t("%@ went to the Trash — you can drag it back", Format.size(bytes)) : " ")
                         .font(.system(size: 12))
@@ -571,8 +572,9 @@ struct ResultSheet: View {
             .opacity(state.resultPulse ? 1 : 0)
 
             if !failures.isEmpty {
-                Text(t("%d items were left alone: %@", failures.count,
-                       failures.prefix(2).map { $0.reason }.joined(separator: "; ")))
+                let reasons = failures.prefix(2).map { $0.reason }.joined(separator: "; ")
+                Text(failures.count == 1 ? t("1 item was left alone: %@", reasons)
+                                         : t("%d items were left alone: %@", failures.count, reasons))
                     .font(.system(size: 11.5))
                     .foregroundStyle(.orange)
                     .lineLimit(2)
@@ -583,7 +585,7 @@ struct ResultSheet: View {
                 ForEach(outcome?.perApp ?? [], id: \.appName) { result in
                     if result.removedCount > 0 {
                         HStack(spacing: 6) {
-                            Image(nsImage: state.app(for: result.appPath).map { state.icon(for: $0) }
+                            Image(nsImage: state.resultIcons[result.appPath]
                                   ?? NSWorkspace.shared.icon(forFile: "/Applications"))
                                 .resizable().frame(width: 14, height: 14)
                             Text(result.appName).font(.system(size: 11.5))

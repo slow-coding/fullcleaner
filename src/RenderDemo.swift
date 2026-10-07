@@ -116,7 +116,7 @@ enum RenderDemo {
                        "卸掉自启项 com.example.foostudio.helper"]
         first.failures = [Rejection(path: "~/Library/Caches/com.example.foostudio",
                                     appName: "Foo Studio",
-                                    reason: "删完路径还在（还有进程在写）", gate: "复核")]
+                                    reason: "Still there after deletion — something kept writing to it", gate: "Verification")]
         var second = AppOutcome(appPath: "/Applications/Line Tool.app", appName: "Line Tool")
         second.removedCount = 3
         second.removedBytes = 38_400_000
