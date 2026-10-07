@@ -11,25 +11,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 工具链
+      - name: Toolchain
         run: swift --version
 
-      # build.sh 自己会做：编译 → 无联网静态检查 → 画图标 → 组装 .app → 自检 → 打 dmg
-      # 自检在临时样本目录里跑完整的判据与删除流程（不碰真实系统）
-      - name: 构建 + 自检
+      # build.sh compiles, runs the offline static checks, draws the icon, assembles the app,
+      # runs the self test in a temp sandbox, and packages a dmg.
+      - name: Build + self test
         run: ./build.sh
 
-      - name: 离线校验（源码 / 二进制 / 运行期三层）
+      - name: Offline check (source / binary / runtime)
         run: ./tools/offline-test.sh
 
-      - name: 发布前检查
+      - name: Release audit
         run: |
-          # 审计会检查「这个仓库的身份不是个人邮箱」。CI 是全新克隆，先设一个中性身份
+          # The audit looks at the repository identity; CI is a fresh clone, so set a neutral one first
           git config --local user.name "ci"
           git config --local user.email "ci@users.noreply.github.com"
-          ./tools/oss-audit.sh
+          ./tools/release-audit.sh
 
-      - name: 上传产物
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: FullCleaner-dmg
