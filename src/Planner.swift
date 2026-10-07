@@ -63,10 +63,10 @@ enum Verifier {
             visited += 1
             if visited > 400 { break }
             let name = child.lastPathComponent.lowercased()
-            if let hit = needles.first(where: { name.contains($0) }) { return "目录里有以 \(hit) 命名的文件" }
+            if let hit = needles.first(where: { name.contains($0) }) { return t("a file named after %@", hit) }
             guard let values = try? child.resourceValues(forKeys: Set(keys)),
                   values.isRegularFile == true, (values.fileSize ?? 0) < 512_000 else { continue }
-            if let hit = fileEvidence(needles, at: child.path) { return "文件里写到了 \(hit)" }
+            if let hit = fileEvidence(needles, at: child.path) { return t("found “%@” inside", hit) }
         }
         return nil
     }
@@ -111,7 +111,7 @@ enum Planner {
             if app.protected {
                 // 系统自带 / Apple 应用不能被卸载：连残留都不去扫。
                 // 扫它们没有任何用处，还会白碰 Music、Photos 这类系统应用的路径（会招来系统的媒体库弹窗）。
-                set.skipped.append(Skipped(path: app.path, appName: app.name, reason: "系统自带或 Apple 的应用"))
+                set.skipped.append(Skipped(path: app.path, appName: app.name, reason: t("System app or Apple app")))
                 continue
             }
             set.items.append(bundle)
@@ -129,7 +129,7 @@ enum Planner {
                 }
                 // iCloud 数据：删了会影响其他设备 → 跳过
                 if hit.kind == .iCloudContainer {
-                    set.skipped.append(Skipped(path: hit.path, appName: app.name, reason: "iCloud 数据，删了其他设备也会少"))
+                    set.skipped.append(Skipped(path: hit.path, appName: app.name, reason: t("iCloud data — deleting it would affect your other devices")))
                     continue
                 }
                 // 按应用名匹配的：必须读到证据才算它的
@@ -137,10 +137,10 @@ enum Planner {
                 if hit.how == .appName {
                     guard let evidence = Verifier.evidence(bundleID: app.bundleID, appPath: app.path,
                                                            executable: app.executableName, in: hit.path) else {
-                        set.skipped.append(Skipped(path: hit.path, appName: app.name, reason: "只有名字像，没有证据"))
+                        set.skipped.append(Skipped(path: hit.path, appName: app.name, reason: t("Name looks similar, no evidence found")))
                         continue
                     }
-                    note += " 判据：\(evidence)。"
+                    note += " " + t("Evidence: %@.", evidence)
                 }
 
                 let item = PlanItem(appPath: app.path, appName: app.name, path: hit.path, bytes: hit.bytes,
@@ -185,7 +185,7 @@ enum Planner {
         }
         for item in ok where !kept.contains(where: { $0.id == item.id }) {
             rejected.append(Rejection(path: item.path, appName: item.appName,
-                                      reason: "它的上级目录这次也要删，删上级就够了", gate: "不误伤"))
+                                      reason: t("Its parent folder is being deleted too — the parent is enough"), gate: t("No collateral damage")))
         }
         ok = kept
 
@@ -194,12 +194,12 @@ enum Planner {
         for item in ok {
             if let first = seen[item.path], first != item.appPath {
                 rejected.append(Rejection(path: item.path, appName: item.appName,
-                                          reason: "\(first) 那边也勾了这一条，两边都想删的目录本工具不动", gate: "不误伤"))
+                                          reason: t("%@ also selected this one; when two apps claim a path, neither is deleted", first), gate: t("No collateral damage")))
             } else {
                 seen[item.path] = item.appPath
             }
         }
-        ok = ok.filter { item in !rejected.contains { $0.path == item.path && $0.gate == "不误伤" } }
+        ok = ok.filter { item in !rejected.contains { $0.path == item.path && $0.gate == t("No collateral damage") } }
         return (ok, rejected)
     }
 
@@ -208,39 +208,39 @@ enum Planner {
         let manager = FileManager.default
         let path = item.path
 
-        if let app, app.protected { return ("保护名单", "\(app.name) 是系统自带或 Apple 的应用") }
+        if let app, app.protected { return (t("Protected paths"), t("%@ is a system or Apple app", app.name)) }
         if !item.sharedWith.isEmpty {
-            return ("不误伤", "还有别的应用在用它（\(item.sharedWith.joined(separator: "、"))），删了它们会出问题")
+            return (t("No collateral damage"), t("Other apps still use it (%@) — deleting it would break them", item.sharedWith.joined(separator: ", ")))
         }
-        guard path.hasPrefix("/") else { return ("路径形态", "不是绝对路径") }
-        guard !path.contains("/../") else { return ("路径形态", "路径里有 ..，不删") }
-        guard manager.fileExists(atPath: path) else { return ("路径形态", "路径已不存在") }
+        guard path.hasPrefix("/") else { return (t("Path shape"), t("Not an absolute path")) }
+        guard !path.contains("/../") else { return (t("Path shape"), t("Path contains .. — not deleted")) }
+        guard manager.fileExists(atPath: path) else { return (t("Path shape"), t("Path does not exist any more")) }
 
         // 符号链接一律不删：它可能是绕开保护名单的跳板
         let attributes = try? manager.attributesOfItem(atPath: path)
         if attributes?[.type] as? FileAttributeType == .typeSymbolicLink {
-            return ("路径形态", "这是符号链接，不删")
+            return (t("Path shape"), t("This is a symlink — not deleted"))
         }
         // 解析真实路径后仍要在允许的目录里；应用本体走它自己的白名单
         let real = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
         let inDeletionRoots = Paths.deletionRoots.contains { real == $0 || real.hasPrefix($0 + "/") }
         let inAppDirectories = item.isAppBundle && Paths.appDirectories.contains { path.hasPrefix($0 + "/") }
         guard inDeletionRoots || inAppDirectories else {
-            return ("保护名单", "不在本工具允许删除的目录里")
+            return (t("Protected paths"), t("Not inside the directories this tool may delete from"))
         }
         if Paths.neverTouch.contains(where: { path == $0 }) {
-            return ("保护名单", "这是受保护的目录本身")
+            return (t("Protected paths"), t("This is a protected path itself"))
         }
         if path.hasPrefix(Paths.library + "/Preferences/com.apple.") {
-            return ("保护名单", "系统自己的偏好设置，不动")
+            return (t("Protected paths"), t("macOS's own preference file — not touched"))
         }
 
         if item.isAppBundle {
             guard Paths.appDirectories.contains(where: { path.hasPrefix($0 + "/") }) else {
-                return ("保护名单", "这个应用不在标准应用目录（/Applications 或 ~/Applications）里，本工具不动它")
+                return (t("Protected paths"), t("This app is not in a standard app folder (/Applications or ~/Applications)"))
             }
             guard !path.hasPrefix(Paths.system("/System/")) else {
-                return ("保护名单", "系统自带应用受 SIP 保护")
+                return (t("Protected paths"), t("Built-in system app, protected by SIP"))
             }
         }
 
@@ -248,7 +248,7 @@ enum Planner {
             let itemVolume = (try? URL(fileURLWithPath: path).resourceValues(forKeys: [.volumeIdentifierKey]))?.volumeIdentifier
             let appVolume = (try? URL(fileURLWithPath: app.path).resourceValues(forKeys: [.volumeIdentifierKey]))?.volumeIdentifier
             if let itemVolume, let appVolume, String(describing: itemVolume) != String(describing: appVolume) {
-                return ("同一磁盘", "应用不在同一块磁盘上，跨盘的东西不删")
+                return (t("Same volume"), t("The app lives on another disk; cross-volume items are not touched"))
             }
         }
         return nil

@@ -14,20 +14,20 @@ enum Permission: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .fullDiskAccess: return "完全磁盘访问"
-        case .filesAndFolders: return "文件与文件夹（音乐 / 影片 / 图片 / 文稿 / iCloud Drive）"
-        case .appManagement: return "App 管理"
+        case .fullDiskAccess: return t("Full Disk Access")
+        case .filesAndFolders: return t("Files and Folders (Music / Movies / Pictures / Documents / iCloud Drive)")
+        case .appManagement: return t("App Management")
         }
     }
 
     var purpose: String {
         switch self {
         case .fullDiskAccess:
-            return "读取其他应用的容器内容：核对「按名字匹配」的目录到底是不是它的，以及量残留体积。没有它，macOS 会逐次弹窗，或者读不全。"
+            return t("Read inside other apps' containers — that is how a folder named after an app is verified to belong to it, and how leftover sizes are measured. Without it macOS asks repeatedly, or reads come back incomplete.")
         case .filesAndFolders:
-            return "扫到这些位置时 macOS 会弹窗问一次。给了完全磁盘访问就一并覆盖，不会再有零散弹窗；没给就整段跳过，不打扰你。"
+            return t("Those locations make macOS prompt once. Full Disk Access covers them all; without it this app skips them entirely instead of interrupting you.")
         case .appManagement:
-            return "把其他应用的本体移到废纸篓。macOS 13 起，改动别的应用包需要这一项。"
+            return t("Move another app's bundle to the Trash. Since macOS 13, modifying a bundle you do not own requires it.")
         }
     }
 
@@ -42,8 +42,8 @@ enum Permission: String, CaseIterable, Identifiable {
     var settingsHint: String {
         switch self {
         case .fullDiskAccess, .filesAndFolders:
-            return "系统设置 → 隐私与安全性 → 完全磁盘访问权限 → 打开 FullCleaner 的开关（这一项管住上面所有位置）"
-        case .appManagement: return "系统设置 → 隐私与安全性 → App 管理 → 打开 FullCleaner 的开关"
+            return t("System Settings → Privacy & Security → Full Disk Access → switch FullCleaner on (this one covers all of the above)")
+        case .appManagement: return t("System Settings → Privacy & Security → App Management → switch FullCleaner on")
         }
     }
 }
@@ -55,9 +55,9 @@ enum PermissionStatus {
 
     var label: String {
         switch self {
-        case .granted: return "已授权"
-        case .missing: return "未授权"
-        case .unknown: return "检测不了"
+        case .granted: return t("Granted")
+        case .missing: return t("Not granted")
+        case .unknown: return t("Can't tell yet")
         }
     }
 }
@@ -97,7 +97,7 @@ enum Permissions {
     static var allGranted: Bool { all().allSatisfy { $0.status == .granted } }
 
     /// 扫描时用：没有完全磁盘访问就不去碰会触发系统弹窗的位置。
-    /// 自检里用 FULLCLEANER_FAKE_FDA=1 模拟"已授权"，好把两种分支都验到。
+    /// 自检里用 FULLCLEANER_FAKE_FDA=1 模拟t("Granted")，好把两种分支都验到。
     static var fullDiskAccessGranted: Bool {
         if ProcessInfo.processInfo.environment["FULLCLEANER_FAKE_FDA"] == "1" { return true }
         return canReadTCCDatabase()

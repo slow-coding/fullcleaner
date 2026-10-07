@@ -234,7 +234,7 @@ enum SelfTest {
         check(item("/Library/LaunchAgents/com.example.fake.agent.plist") != nil, "自启项：在清单里")
 
         check(item("/Library/Application Support/Unverified") == nil, "只有名字像的：不进清单")
-        check(skipped("/Library/Application Support/Unverified")?.reason.contains("没有证据") == true,
+        check(skipped("/Library/Application Support/Unverified")?.reason.contains("no evidence") == true,
               "并在跳过清单里写明原因")
         check(item("/Library/Mobile Documents/iCloud~com~example~fake") == nil, "iCloud 数据：不进清单")
         check(skipped("/Library/Mobile Documents/iCloud~com~example~fake") != nil, "iCloud 数据记进跳过清单")
@@ -254,7 +254,7 @@ enum SelfTest {
                                   path: Paths.home + "/Library/Group Containers/group.com.example.shared",
                                   bytes: 10, kind: .groupContainer, match: .appGroup)
         sharedItem.sharedWith = registry.claimants(of: "group.com.example.shared", excluding: sharedA)
-        check(Planner.reject(sharedItem, app: sharedA)?.gate == "不误伤", "共用容器：闸门拦下")
+        check(Planner.reject(sharedItem, app: sharedA)?.gate == "No collateral damage", "共用容器：闸门拦下")
 
         // 没有完全磁盘访问时的策略：不去碰会弹窗的位置
         unsetenv("FULLCLEANER_FAKE_FDA")
@@ -276,13 +276,13 @@ enum SelfTest {
         func item(_ path: String, kind: ResidueKind = .cache, appPath: String? = nil) -> PlanItem {
             PlanItem(appPath: appPath ?? app?.path ?? "", appName: "Fake App", path: path, bytes: 1, kind: kind, match: .exactID)
         }
-        check(Planner.reject(item(home + "/Documents/paper.txt"), app: app)?.gate == "保护名单", "用户文稿目录里的东西不动")
-        check(Planner.reject(item(home), app: app)?.gate == "保护名单", "家目录本身不动")
-        check(Planner.reject(item(Paths.library + "/Preferences"), app: app)?.gate == "保护名单", "受保护目录本身不动")
-        check(Planner.reject(item(Paths.library + "/Preferences/com.apple.fake.plist"), app: app)?.gate == "保护名单",
+        check(Planner.reject(item(home + "/Documents/paper.txt"), app: app)?.gate == "Protected paths", "用户文稿目录里的东西不动")
+        check(Planner.reject(item(home), app: app)?.gate == "Protected paths", "家目录本身不动")
+        check(Planner.reject(item(Paths.library + "/Preferences"), app: app)?.gate == "Protected paths", "受保护目录本身不动")
+        check(Planner.reject(item(Paths.library + "/Preferences/com.apple.fake.plist"), app: app)?.gate == "Protected paths",
               "系统自己的偏好设置不动")
-        check(Planner.reject(item(home + "/Library/Caches/decoy-link"), app: app)?.gate == "路径形态", "符号链接不动")
-        check(Planner.reject(item(home + "/Library/Caches/not-there"), app: app)?.gate == "路径形态", "不存在的路径不动")
+        check(Planner.reject(item(home + "/Library/Caches/decoy-link"), app: app)?.gate == "Path shape", "符号链接不动")
+        check(Planner.reject(item(home + "/Library/Caches/not-there"), app: app)?.gate == "Path shape", "不存在的路径不动")
         check(Planner.reject(item(home + "/Library/Caches/target-dir/inside.txt"), app: app) == nil, "样本里的普通文件可以通过")
 
         // 父子同时勾选：只留父
@@ -290,14 +290,14 @@ enum SelfTest {
         let child = item(home + "/Library/Caches/target-dir/inside.txt")
         let (ok, rejected) = Planner.preflight([parent, child], apps: apps)
         check(ok.count == 1 && ok[0].path == parent.path, "父子同时勾选时只留父目录")
-        check(rejected.contains { $0.gate == "不误伤" }, "子目录被拦下并写明原因")
+        check(rejected.contains { $0.gate == "No collateral damage" }, "子目录被拦下并写明原因")
 
         // 两个应用勾了同一个路径
         let first = item(home + "/Library/Caches/com.example.fake", appPath: apps[0].path)
         let second = item(home + "/Library/Caches/com.example.fake", appPath: apps[1].path)
         let (ok2, rejected2) = Planner.preflight([first, second], apps: apps)
         check(ok2.isEmpty, "两个应用都勾同一路径时一条都不删")
-        check(rejected2.contains { $0.gate == "不误伤" }, "并写明原因")
+        check(rejected2.contains { $0.gate == "No collateral damage" }, "并写明原因")
     }
 
     // MARK: - 执行

@@ -1,6 +1,6 @@
 // 找出一个应用散落在系统各处的残留。
 // 匹配靠三样东西：bundle id（含前缀）、签名里声明的 App Group / iCloud 容器、包内自启项的 label。
-// 只有少数几类目录允许按"应用名"匹配（应用支持、缓存、日志），这类会在界面上标出来，让人自己看一眼。
+// 只有少数几类目录允许按t("app name")匹配（应用支持、缓存、日志），这类会在界面上标出来，让人自己看一眼。
 
 import Foundation
 
@@ -38,7 +38,7 @@ enum ResidueScanner {
         add(Paths.library + "/Group Containers", .groupContainer, false)
         add(Paths.library + "/Application Scripts", .appScripts, false)
         add(Paths.library + "/Preferences", .preferences, true, stripSuffix: true)
-        add(Paths.library + "/Preferences/ByHost", .preferences, false, stripSuffix: true, label: "偏好（按主机）")
+        add(Paths.library + "/Preferences/ByHost", .preferences, false, stripSuffix: true, label: t("Preferences (per host)"))
         add(Paths.library + "/Saved Application State", .savedState, false)
         add(Paths.library + "/Caches", .cache, true)
         add(Paths.library + "/HTTPStorages", .httpStorage, false)
@@ -46,7 +46,7 @@ enum ResidueScanner {
         add(Paths.library + "/Application Support", .applicationSupport, true)
         add(Paths.library + "/Application Support/CrashReporter", .crashReporter, true, prefixName: true)
         add(Paths.library + "/Logs", .logs, true)
-        add(Paths.library + "/Logs/DiagnosticReports", .logs, true, prefixName: true, label: "崩溃日志")
+        add(Paths.library + "/Logs/DiagnosticReports", .logs, true, prefixName: true, label: t("Crash logs"))
         add(Paths.library + "/Autosave Information", .savedState, true)
         add(Paths.library + "/LaunchAgents", .launchAgent, false, stripSuffix: true)
 

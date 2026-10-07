@@ -41,7 +41,7 @@ struct ContentView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text("已装 \(state.apps.count) 个应用 · 合计 \(Format.size(state.apps.reduce(0) { $0 + $1.bytes }))")
+            Text(t("%d apps installed · %@ total", state.apps.count, Format.size(state.apps.reduce(0) { $0 + $1.bytes })))
                 .font(.system(size: 15, weight: .semibold))
             if state.scanning {
                 ProgressView().controlSize(.small)
@@ -59,12 +59,22 @@ struct ContentView: View {
                     Circle()
                         .fill(state.permissionRows.allSatisfy { $0.status == .granted } ? Color.green : Color.orange)
                         .frame(width: 7, height: 7)
-                    Text("权限")
+                    Text(t("Permissions"))
                 }
             }
             .controlSize(.small)
             .help(permissionHelp)
-            Button("重新扫描") { state.scan() }
+            Menu {
+                ForEach(Lang.allCases) { lang in
+                    Button(lang.label) { state.use(lang) }
+                }
+            } label: {
+                Image(systemName: "globe")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help(t("Language"))
+            Button(t("Rescan")) { state.scan() }
                 .controlSize(.small)
                 .disabled(state.scanning)
         }
@@ -75,15 +85,15 @@ struct ContentView: View {
     private var toolbar: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary).font(.system(size: 11))
-            TextField("搜索应用", text: $state.query)
+            TextField(t("Search apps"), text: $state.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
             Spacer()
-            Toggle("显示系统自带（\(state.systemCount)）", isOn: $state.showSystem)
+            Toggle(t("Show system apps (%d)", state.systemCount), isOn: $state.showSystem)
                 .toggleStyle(.checkbox)
                 .controlSize(.small)
-                .help("系统自带的应用受 SIP 保护，本工具不卸载，只列出来让你看清全貌")
-            Button("全部取消") { state.clearSelection() }
+                .help(t("System apps are protected by SIP — this tool does not uninstall them, it just shows them"))
+            Button(t("Clear selection")) { state.clearSelection() }
                 .controlSize(.small)
                 .disabled(state.selection.isEmpty)
                 .opacity(state.selection.isEmpty ? 0 : 1)
@@ -106,7 +116,7 @@ struct ContentView: View {
                                                         hovered: state.hovered == app.path))
                 }
                 if state.visible.isEmpty {
-                    Text(state.scanning ? "正在扫描…" : "没有匹配的应用")
+                    Text(state.scanning ? t("Scanning…") : t("No matching apps"))
                         .foregroundStyle(.secondary)
                         .padding(20)
                         .listRowSeparator(.hidden)
@@ -125,10 +135,10 @@ struct ContentView: View {
             headerCell(.size, width: Col.size, trailing: true)
             headerCell(.lastOpened, width: Col.opened, trailing: true)
             headerCell(.openCount, width: Col.opens, trailing: true)
-            Text("残留")
+            Text(t("Leftovers"))
                 .foregroundStyle(.secondary)
                 .frame(width: Col.residue, alignment: .trailing)
-                .help("不给排序：这一列的数字是后台一条条数出来的")
+                .help(t("Not sortable: this column is counted in the background"))
         }
         .font(.system(size: 10.5, weight: .medium))
         .padding(.horizontal, 14)
@@ -153,7 +163,7 @@ struct ContentView: View {
             label.contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("按「\(key.label)」排序，再点一次换方向")
+        .help(t("Sort by “%@” — click again to reverse", key.label))
 
         return Group {
             if let width {
@@ -184,9 +194,9 @@ struct ContentView: View {
                     .foregroundStyle(app.protected ? Color.secondary : Color.primary)
                     .lineLimit(1)
                 Text(app.displayVersion).font(.system(size: 10.5)).foregroundStyle(.secondary)
-                if app.protected { badge("系统自带", color: .secondary) }
+                if app.protected { badge(t("System"), color: .secondary) }
                 if app.isMAS { badge("App Store", color: .blue) }
-                if app.rootOwned && !app.protected { badge("需要管理员", color: .orange) }
+                if app.rootOwned && !app.protected { badge(t("Admin"), color: .orange) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -226,8 +236,8 @@ struct ContentView: View {
 
     private func help(_ app: AppItem) -> String {
         var lines = [app.bundleID]
-        if let last = app.lastOpened { lines.append("上次打开 \(Format.date(last))") }
-        if let count = app.openCount { lines.append("打开 \(count) 次") }
+        if let last = app.lastOpened { lines.append(t("Last opened %@", Format.date(last))) }
+        if let count = app.openCount { lines.append(t("%d opens", count)) }
         return lines.joined(separator: " · ")
     }
 
@@ -240,7 +250,7 @@ struct ContentView: View {
 
     private var permissionHelp: String {
         let missing = state.permissionRows.filter { $0.status != .granted }.map { $0.permission.title }
-        return missing.isEmpty ? "权限都齐了" : "还差：\(missing.joined(separator: "、"))（点开逐项申请）"
+        return missing.isEmpty ? t("Permissions are all granted") : t("Missing: %@ (open to request)", missing.joined(separator: ", "))
     }
 
     private func badge(_ text: String, color: Color) -> some View {
@@ -254,13 +264,13 @@ struct ContentView: View {
 
     private var footer: some View {
         HStack(spacing: 10) {
-            Text(state.selection.isEmpty ? " " : "已选 \(state.selectedApps.count) 个 · \(Format.size(state.selectedBytes))")
+            Text(state.selection.isEmpty ? " " : t("%d selected · %@", state.selectedApps.count, Format.size(state.selectedBytes)))
                 .font(.system(size: 12, weight: .medium))
                 .lineLimit(1)
             Spacer()
-            Button("打开日志目录") { state.openLogFolder() }
+            Button(t("Open log folder")) { state.openLogFolder() }
                 .controlSize(.small)
-            Button("下一步") { state.buildPlan() }
+            Button(t("Next")) { state.buildPlan() }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
                 .disabled(state.selection.isEmpty || state.planBuilding)
@@ -277,8 +287,8 @@ struct PermissionsSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("权限").font(.system(size: 15, weight: .semibold))
-            Text("只有下面这些是这个工具真正用到的。辅助功能、输入监控这类它不需要，所以不申请。")
+            Text(t("Permissions")).font(.system(size: 15, weight: .semibold))
+            Text(t("Only these are actually used. Accessibility and Input Monitoring are not needed and are never requested."))
                 .font(.system(size: 11.5))
                 .foregroundStyle(.secondary)
 
@@ -293,8 +303,8 @@ struct PermissionsSheet: View {
 
             HStack(spacing: 10) {
                 Spacer()
-                Button("重新检查") { state.refreshPermissions() }
-                Button("好") { state.sheet = nil }
+                Button(t("Check again")) { state.refreshPermissions() }
+                Button(t("Done")) { state.sheet = nil }
             }
         }
         .padding(18)
@@ -315,7 +325,7 @@ struct PermissionsSheet: View {
                     if row.checking {
                         HStack(spacing: 5) {
                             ProgressView().controlSize(.mini)
-                            Text("在等系统放行…").font(.system(size: 10.5)).foregroundStyle(.secondary)
+                            Text(t("Waiting for macOS…")).font(.system(size: 10.5)).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -331,7 +341,7 @@ struct PermissionsSheet: View {
             }
             Spacer(minLength: 8)
             if row.status != .granted {
-                Button("去申请") { state.requestPermission(row.permission) }
+                Button(t("Request")) { state.requestPermission(row.permission) }
                     .controlSize(.small)
                     .disabled(row.checking)
             }
@@ -377,7 +387,7 @@ struct ReviewSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 ProgressView().controlSize(.small)
-                Text("正在深度扫描残留").font(.system(size: 14, weight: .semibold))
+                Text(t("Deep-scanning leftovers")).font(.system(size: 14, weight: .semibold))
             }
             Text(state.progressLine)
                 .font(.system(size: 12))
@@ -387,7 +397,7 @@ struct ReviewSheet: View {
     }
 
     private var header: some View {
-        Text("卸载 \(state.selectedApps.count) 个应用 · 移除 \(state.checkedPlan.count) 项 · \(Format.size(state.checkedBytes))")
+        Text(t("Uninstall %d apps · %d items · %@", state.selectedApps.count, state.checkedPlan.count, Format.size(state.checkedBytes)))
             .font(.system(size: 15, weight: .semibold))
     }
 
@@ -399,7 +409,8 @@ struct ReviewSheet: View {
                         Image(nsImage: state.icon(for: app))
                             .resizable().frame(width: 18, height: 18)
                         Text(app.name).font(.system(size: 12.5, weight: .semibold))
-                        Text("\(rows.filter { $0.checked }.count)/\(rows.count) 项 · \(Format.size(rows.filter { $0.checked }.reduce(0) { $0 + $1.bytes }))")
+                        Text(t("%d/%d items · %@", rows.filter { $0.checked }.count, rows.count,
+                                     Format.size(rows.filter { $0.checked }.reduce(0) { $0 + $1.bytes })))
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                         Spacer()
@@ -432,9 +443,9 @@ struct ReviewSheet: View {
                     if let kind = item.kind {
                         badge(kind.label, color: .secondary).help(kind.explain)
                     } else {
-                        badge("应用本体", color: .accentColor)
+                        badge(t("App bundle"), color: .accentColor)
                     }
-                    if item.needsAdmin { badge("需要管理员", color: .orange) }
+                    if item.needsAdmin { badge(t("Admin"), color: .orange) }
                 }
                 Text(Format.short(item.path))
                     .font(.system(size: 10.5))
@@ -451,7 +462,7 @@ struct ReviewSheet: View {
 
     private var rejectedList: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("拦下 \(state.rejected.count) 项")
+            Text(t("%d blocked", state.rejected.count))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.orange)
             ScrollView {
@@ -472,14 +483,14 @@ struct ReviewSheet: View {
     private var footer: some View {
         HStack(spacing: 10) {
             if !state.skipped.isEmpty {
-                Text("另有 \(state.skipped.count) 项无法确认归属，已跳过")
+                Text(t("%d items couldn't be attributed — skipped", state.skipped.count))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .help(state.skipped.prefix(8).map { Format.short($0.path) + "（\($0.reason)）" }.joined(separator: "\n"))
             }
             Spacer()
-            Button("取消") { state.sheet = nil }
-            Button("卸载这 \(state.checkedPlan.count) 项") { state.runUninstall() }
+            Button(t("Cancel")) { state.sheet = nil }
+            Button(t("Uninstall %d items", state.checkedPlan.count)) { state.runUninstall() }
                 .buttonStyle(.borderedProminent)
                 .disabled(state.checkedPlan.isEmpty)
         }
@@ -494,7 +505,7 @@ struct ReviewSheet: View {
 
     private var permissionHelp: String {
         let missing = state.permissionRows.filter { $0.status != .granted }.map { $0.permission.title }
-        return missing.isEmpty ? "权限都齐了" : "还差：\(missing.joined(separator: "、"))（点开逐项申请）"
+        return missing.isEmpty ? t("Permissions are all granted") : t("Missing: %@ (open to request)", missing.joined(separator: ", "))
     }
 
     private func badge(_ text: String, color: Color) -> some View {
@@ -516,7 +527,7 @@ struct RunningSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 ProgressView().controlSize(.small)
-                Text("正在卸载…").font(.system(size: 14, weight: .semibold))
+                Text(t("Uninstalling…")).font(.system(size: 14, weight: .semibold))
             }
             Text(state.progressLine).font(.system(size: 12)).foregroundStyle(.secondary)
             Spacer()
@@ -549,9 +560,9 @@ struct ResultSheet: View {
                 .opacity(state.resultPulse ? 1 : 0)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(removed > 0 ? "已移除 \(removed) 项" : "没有要移除的东西")
+                    Text(removed > 0 ? t("%d items removed", removed) : t("Nothing to remove"))
                         .font(.system(size: 19, weight: .semibold))
-                    Text(bytes > 0 ? "\(Format.size(bytes)) 进了废纸篓，随时可以拖回来" : " ")
+                    Text(bytes > 0 ? t("%@ went to the Trash — you can drag it back", Format.size(bytes)) : " ")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
@@ -560,7 +571,8 @@ struct ResultSheet: View {
             .opacity(state.resultPulse ? 1 : 0)
 
             if !failures.isEmpty {
-                Text("有 \(failures.count) 项没动：\(failures.prefix(2).map { $0.reason }.joined(separator: "；"))")
+                Text(t("%d items were left alone: %@", failures.count,
+                       failures.prefix(2).map { $0.reason }.joined(separator: "; ")))
                     .font(.system(size: 11.5))
                     .foregroundStyle(.orange)
                     .lineLimit(2)
@@ -588,10 +600,10 @@ struct ResultSheet: View {
             }
 
             HStack {
-                Button("打开废纸篓") { state.openTrash() }.controlSize(.small)
-                Button("打开日志") { state.openLogFolder() }.controlSize(.small)
+                Button(t("Open Trash")) { state.openTrash() }.controlSize(.small)
+                Button(t("Open log")) { state.openLogFolder() }.controlSize(.small)
                 Spacer()
-                Button("好") { state.sheet = nil }
+                Button(t("Done")) { state.sheet = nil }
             }
         }
         .padding(20)

@@ -14,6 +14,8 @@ struct Main {
         let args = CommandLine.arguments
         if args.contains("--help") || args.contains("-h") { CLI.usage(); exit(0) }
         if args.contains("--selftest") { exit(SelfTest.run() ? 0 : 1) }
+        if let index = args.firstIndex(of: "--lang"), index + 1 < args.count,
+           let lang = Lang(rawValue: args[index + 1]) { Str.use(lang) }
         if args.contains("--permissions") { exit(CLI.permissions(json: args.contains("--json"))) }
         if args.contains("--list") { exit(CLI.list(json: args.contains("--json"))) }
         if let index = args.firstIndex(of: "--plan"), index + 1 < args.count {
@@ -28,7 +30,7 @@ struct Main {
             if #available(macOS 14.0, *) {
                 ok = MainActor.assumeIsolated { RenderDemo.renderPermissions(to: args[index + 1]) }
             }
-            print(ok ? "权限面板已渲染到 \(args[index + 1])" : "渲染失败")
+            print(ok ? t("Rendered the permissions panel to %@", args[index + 1]) : t("Render failed"))
             exit(ok ? 0 : 1)
         }
         if let index = args.firstIndex(of: "--render"), index + 1 < args.count {
@@ -37,7 +39,7 @@ struct Main {
             if #available(macOS 14.0, *) {
                 ok = MainActor.assumeIsolated { RenderDemo.renderMain(to: args[index + 1]) }
             }
-            print(ok ? "界面已渲染到 \(args[index + 1])" : "渲染失败")
+            print(ok ? t("Rendered the interface to %@", args[index + 1]) : t("Render failed"))
             exit(ok ? 0 : 1)
         }
         if let index = args.firstIndex(of: "--render-review"), index + 1 < args.count {
@@ -46,7 +48,7 @@ struct Main {
             if #available(macOS 14.0, *) {
                 ok = MainActor.assumeIsolated { RenderDemo.renderReview(to: args[index + 1]) }
             }
-            print(ok ? "清单已渲染到 \(args[index + 1])" : "渲染失败")
+            print(ok ? t("Rendered the plan to %@", args[index + 1]) : t("Render failed"))
             exit(ok ? 0 : 1)
         }
         if let index = args.firstIndex(of: "--render-result"), index + 1 < args.count {
@@ -55,7 +57,7 @@ struct Main {
             if #available(macOS 14.0, *) {
                 ok = MainActor.assumeIsolated { RenderDemo.renderResult(to: args[index + 1]) }
             }
-            print(ok ? "结果页已渲染到 \(args[index + 1])" : "渲染失败")
+            print(ok ? t("Rendered the result sheet to %@", args[index + 1]) : t("Render failed"))
             exit(ok ? 0 : 1)
         }
         FullCleanerApp.main()
@@ -79,19 +81,23 @@ enum CLI {
 
     static func usage() {
         print("""
-        FullCleaner · 把 macOS 上的应用彻底卸掉（连同散落各处的残留）
+        FullCleaner — remove a macOS app and everything it left behind
 
-        用法：
-          fullcleaner --list [--json]                    列出已安装应用（只读）
-          fullcleaner --plan <名字|bundle id> [--json]   打印一个应用的卸载清单（只读，不删任何东西）
-          fullcleaner --uninstall <名字|bundle id> --yes 按同一套闸门执行卸载（默认进废纸篓）
-          fullcleaner --selftest                         在临时样本目录里跑完整自检
-          fullcleaner --render <out.png>                 把界面渲染成图（改完排版看一眼）
-          fullcleaner --render-review <out.png>          渲染卸载清单
-          fullcleaner --render-result <out.png>          渲染结果页
-          fullcleaner --help                             这份说明
+        Usage:
+          fullcleaner --list [--json]                    list installed apps (read-only)
+          fullcleaner --plan <name|bundle id> [--json]   print the removal plan for one app (read-only)
+          fullcleaner --uninstall <name|bundle id> --yes execute the plan (Trash by default)
+          fullcleaner --permissions [--json]             system permission status (two items)
+          fullcleaner --lang <en|zh>                     switch interface language
+          fullcleaner --selftest                         run the self test in a temp sandbox
+          fullcleaner --render <out.png>                 render the interface to a PNG
+          fullcleaner --render-review <out.png>          render the removal plan
+          fullcleaner --render-permissions <out.png>     render the permissions panel
+          fullcleaner --render-result <out.png>          render the result sheet
+          fullcleaner --help                             this text
 
-        不加参数就是打开界面。删除只走废纸篓；属于 root 的条目会一次性弹管理员密码。
+        No arguments opens the interface. Deletion goes to the Trash; root-owned items
+        take one administrator prompt. Source and docs: github.com/slow-coding/fullcleaner (MIT)
         """)
     }
 
@@ -115,7 +121,7 @@ enum CLI {
                let text = String(data: data, encoding: .utf8) { print(text) }
             return rows.allSatisfy { $0.status == .granted } ? 0 : 1
         }
-        print("权限（这个工具只用这两项）")
+        print(t("Permissions (this tool only uses these)"))
         for row in rows {
             let mark = row.status == .granted ? "✓" : (row.status == .missing ? "✗" : "?")
             print("  \(mark) \(row.permission.title)  \(row.status.label)")
@@ -141,7 +147,7 @@ enum CLI {
                let text = String(data: data, encoding: .utf8) { print(text) }
             return 0
         }
-        print("已装 \(apps.count) 个应用 · 合计 \(Format.size(apps.reduce(0) { $0 + $1.bytes }))")
+        print(t("%d apps installed · %@ total", apps.count, Format.size(apps.reduce(0) { $0 + $1.bytes })))
         print("")
         for app in apps.sorted(by: { $0.bytes > $1.bytes }) {
             var marks: [String] = []
@@ -159,7 +165,7 @@ enum CLI {
     static func plan(target: String, json: Bool) -> Int32 {
         let apps = AppScanner.scan()
         guard let app = locate(target, apps: apps) else {
-            print("没找到「\(target)」。用 --list 看看有哪些应用。")
+            print(t("Not found: “%@”. Try --list to see what is installed.", target))
             return 2
         }
         let planned = Planner.build(apps: [app], all: apps)
@@ -187,19 +193,19 @@ enum CLI {
         }
 
         print("\(app.name)  \(app.version)  \(app.bundleID)")
-        print("应用本体 \(Format.size(app.bytes)) · \(app.path)")
+        print("\(t("App bundle")) \(Format.size(app.bytes)) · \(app.path)")
         print("")
-        print("清单（\(items.count) 项，★ = 默认勾选）：")
+        print(t("Items in the plan (%d, ★ = selected):", items.count))
         for item in items {
             let mark = item.checked ? "★" : " "
-            let kind = item.kind.map { "[\($0.label)]" } ?? "[应用本体]"
+            let kind = item.kind.map { "[\($0.label)]" } ?? "[\(t("App bundle"))]"
             print(String(format: "  %@ %10@  %@ %@", mark as NSString, Format.size(item.bytes) as NSString,
                          kind as NSString, Format.path(item.path) as NSString))
             if !item.isAppBundle { print("        \(item.why)") }
         }
         if !planned.skipped.isEmpty {
             print("")
-            print("跳过 \(planned.skipped.count) 项（归属拿不准或不能动，不删）：")
+            print(t("Skipped %d items (uncertain, or not safe to remove):", planned.skipped.count))
             for skip in planned.skipped {
                 print("  · \(skip.reason) —— \(Format.short(skip.path))")
             }
@@ -212,36 +218,37 @@ enum CLI {
             }
         }
         print("")
-        print("会删 \(ok.count) 项 · \(Format.size(ok.reduce(0) { $0 + $1.bytes }))；这里只出清单，没动任何文件。")
+        print(t("Would remove %d items · %@; this command only prints the list.", ok.count,
+                Format.size(ok.reduce(0) { $0 + $1.bytes })))
         return 0
     }
 
     static func uninstall(target: String, confirmed: Bool) -> Int32 {
         guard confirmed else {
-            print("要真删得加 --yes。先跑 --plan \(target) 看一眼清单。")
+            print(t("Add --yes to actually delete. Run --plan %@ first to see the list.", target))
             return 64
         }
         let apps = AppScanner.scan()
         guard let app = locate(target, apps: apps) else {
-            print("没找到「\(target)」。用 --list 看看有哪些应用。")
+            print(t("Not found: “%@”. Try --list to see what is installed.", target))
             return 2
         }
         let planned = Planner.build(apps: [app], all: apps)
         let (ok, rejected) = Planner.preflight(planned.items, apps: [app])
         if !rejected.isEmpty {
-            print("被拦下 \(rejected.count) 项：")
+            print(t("Blocked %d items (not deleted):", rejected.count))
             for rejection in rejected { print("  · \(rejection.gate)：\(rejection.reason) —— \(Format.short(rejection.path))") }
         }
         let outcome = Remover.execute(items: ok, apps: [app]) { line in
             FileHandle.standardError.write("\(line)\n".data(using: .utf8)!)
         }
         print("")
-        print("移除 \(outcome.totalRemoved) 项 · \(Format.size(outcome.totalBytes))")
+        print(t("Removed %d items · %@", outcome.totalRemoved, Format.size(outcome.totalBytes)))
         for result in outcome.perApp {
             for note in result.notes { print("  · \(note)") }
-            for failure in result.failures { print("  · 没动：\(failure.reason)（\(Format.short(failure.path))）") }
+            for failure in result.failures { print("  · " + t("left alone: %@ (%@)", failure.reason, Format.short(failure.path))) }
         }
-        print("日志：\(outcome.logPath)")
+        print(t("Log: %@", outcome.logPath))
         return outcome.allFailures.isEmpty ? 0 : 1
     }
 }

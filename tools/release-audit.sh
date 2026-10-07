@@ -125,7 +125,7 @@ for shot in $(grep -oE 'docs/[a-zA-Z0-9._-]+\.png' README.md | sort -u); do
 done
 [ "$MISSING" -eq 0 ] && ok "README 里引用的截图都存在" || bad "README 引用了不存在的截图"
 if [ "$BUILT" = "1" ]; then
-  ./build/$DISPLAY.app/Contents/MacOS/$NAME --help 2>&1 | grep -q '用法' && ok "--help 有用法说明" || bad "--help 没有输出"
+  ./build/$DISPLAY.app/Contents/MacOS/$NAME --help 2>&1 | grep -qE '用法|Usage' && ok "--help 有用法说明" || bad "--help 没有输出"
 else
   skip "--help：未构建，跳过"
 fi

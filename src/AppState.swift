@@ -10,6 +10,7 @@ final class AppState: ObservableObject {
     @Published var query: String = "" { didSet { refreshVisibleRows() } }
     @Published var selection: Set<String> = []          // 勾中的应用 path
     @Published var showSystem: Bool = false { didSet { refreshVisibleRows() } }
+    @Published var lang: Lang = .en
     @Published var hovered: String?
     @Published private(set) var icons: [String: NSImage] = [:]
     @Published private(set) var visibleRows: [AppItem] = []
@@ -20,7 +21,7 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(sortAscending, forKey: "sortAscending"); refreshVisibleRows() }
     }
     @Published var scanning: Bool = true
-    @Published var phase: String = "正在扫描已安装的应用…"
+    @Published var phase: String = t("Scanning installed apps…")
     @Published var scanningLine: String = ""
     @Published var residueCount: [String: Int] = [:]    // 应用 path → 找到几处残留（只数个数，不量体积）
 
@@ -68,7 +69,7 @@ final class AppState: ObservableObject {
     func scan() {
         stopFlag = StopFlag()
         scanning = true
-        phase = "正在扫描已安装的应用…"
+        phase = t("Scanning installed apps…")
         residueCount = [:]
         selection = []
         scanningLine = ""
@@ -163,6 +164,13 @@ final class AppState: ObservableObject {
 
     func clearSelection() { selection = [] }
 
+    /// 切语言：存下来并立刻重绘（界面上所有字串都是渲染时查表的）。
+    func use(_ lang: Lang) {
+        self.lang = lang
+        Str.use(lang)
+        objectWillChange.send()
+    }
+
     // MARK: - 权限
 
     /// 打开权限面板时刷新一次状态。
@@ -205,7 +213,7 @@ final class AppState: ObservableObject {
         guard !chosen.isEmpty else { return }
         planBuilding = true
         sheet = .review
-        progressLine = "正在找残留并量体积…"
+        progressLine = t("Finding leftovers and measuring them…")
         let all = apps
         DispatchQueue.global(qos: .userInitiated).async {
             // 累积变量必须声明在闭包里面：Swift 6 下「闭包里改外面的 var」是错误（CI 的编译器会拦）
@@ -231,7 +239,7 @@ final class AppState: ObservableObject {
                 self.rejected = rejected
                 self.planBuilding = false
                 self.progressLine = ""
-                if planned.isEmpty { self.message = "没有找到可以删的东西" }
+                if planned.isEmpty { self.message = t("Nothing left to delete was found") }
             }
         }
     }
@@ -256,7 +264,7 @@ final class AppState: ObservableObject {
         let chosen = selectedApps
         let skipList = skipped
         sheet = .running
-        progressLine = "准备开始…"
+        progressLine = t("Preparing…")
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Remover.execute(items: items, skipped: skipList, apps: chosen) { line in
                 DispatchQueue.main.async { self.progressLine = line }

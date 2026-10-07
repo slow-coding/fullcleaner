@@ -20,6 +20,7 @@ enum RenderDemo {
 
     @MainActor
     static func demoState() -> AppState {
+        Str.use(.en)          // 截图一律英文：README 面向国际读者
         let state = AppState()
         state.apps = [
             fakeApp("Foo Studio", "com.example.foostudio", version: "2.1", bytes: 486_000_000,

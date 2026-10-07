@@ -67,7 +67,7 @@ enum Remover {
                 targets.append(running)
             }
         }
-        if targets.isEmpty { return (true, "没有在运行") }
+        if targets.isEmpty { return (true, t("Nothing was running")) }
 
         onStep?("正在退出 \(app.name)…")
         for process in targets { process.terminate() }
@@ -88,7 +88,7 @@ enum Remover {
         unloadServices(app: app, onStep: onStep)
 
         let stillRunning = targets.filter { !$0.isTerminated }
-        if stillRunning.isEmpty { return (true, "已退出") }
+        if stillRunning.isEmpty { return (true, t("Quit")) }
         return (false, "还有 \(stillRunning.count) 个进程没退掉（可以在活动监视器里退出，或者重启后再卸）")
     }
 
@@ -157,7 +157,7 @@ enum Remover {
             let quitResult = quit(app, onStep: onStep)
             if !quitResult.ok {
                 result.failures.append(Rejection(path: app.path, appName: app.name,
-                                                 reason: quitResult.detail, gate: "应用已退出"))
+                                                 reason: quitResult.detail, gate: t("App already quit")))
                 outcome.perApp.append(result)
                 continue
             }
@@ -194,7 +194,7 @@ enum Remover {
                 if stillThere, item.kind != .packageReceipt,
                    !result.failures.contains(where: { $0.path == item.path }) {
                     result.failures.append(Rejection(path: item.path, appName: app.name,
-                                                     reason: "删完路径还在", gate: "复核"))
+                                                     reason: t("Still there after deletion"), gate: t("Verification")))
                 }
             }
             outcome.perApp.append(result)
@@ -221,7 +221,7 @@ enum Remover {
             records.append(RemovalRecord(time: timestamp(), app: app.name, bundleID: app.bundleID, path: item.path,
                                          kind: item.kind?.rawValue ?? "bundle", bytes: item.bytes, mode: "trash",
                                          result: "failed", trashPath: "", detail: error.localizedDescription))
-            return Rejection(path: item.path, appName: app.name, reason: error.localizedDescription, gate: "移到废纸篓")
+            return Rejection(path: item.path, appName: app.name, reason: error.localizedDescription, gate: t("Move to Trash"))
         }
         records.append(RemovalRecord(time: timestamp(), app: app.name, bundleID: app.bundleID, path: item.path,
                                      kind: item.kind?.rawValue ?? "bundle", bytes: item.bytes, mode: "trash",
@@ -270,7 +270,7 @@ enum Remover {
         var removed: [PlanItem] = []
         for item in items {
             let key = marker(item)
-            let why = status == 0 ? "命令返回失败" : (status == -1 ? "没拿到管理员授权（可能取消了密码框）" : "命令返回失败")
+            let why = status == 0 ? t("the command failed") : (status == -1 ? t("the administrator prompt was not granted (maybe cancelled)") : t("the command failed"))
             if succeeded.contains(key) {
                 removed.append(item)
                 records.append(RemovalRecord(time: timestamp(), app: app.name, bundleID: app.bundleID, path: item.path,
@@ -283,7 +283,7 @@ enum Remover {
                                              kind: "packageReceipt", bytes: 0, mode: "skipped",
                                              result: "ok", trashPath: "", detail: "自检：跳过 pkgutil --forget"))
             } else if failed.contains(key) || !succeeded.contains(key) {
-                failures.append(Rejection(path: item.path, appName: app.name, reason: why, gate: "管理员操作"))
+                failures.append(Rejection(path: item.path, appName: app.name, reason: why, gate: t("Administrator action")))
                 records.append(RemovalRecord(time: timestamp(), app: app.name, bundleID: app.bundleID, path: item.path,
                                              kind: item.kind?.rawValue ?? "bundle", bytes: item.bytes,
                                              mode: item.kind == .packageReceipt ? "forget" : "delete",

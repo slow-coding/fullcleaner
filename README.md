@@ -65,6 +65,16 @@ When it finishes, the result sheet is a single green check with what was removed
 
 ![Result](docs/screenshot-result.png)
 
+## Languages
+
+The interface ships in **English (default)** and **简体中文**. Switch it from the globe menu in the toolbar, or set it for the CLI:
+
+```sh
+fullcleaner --lang zh --list
+```
+
+Every string lives in one table (`src/Strings.swift`: English as the key, Chinese as the translation) — adding a language means adding a table, no Xcode project required. The screenshots in this README are rendered in English on purpose.
+
 ## Permissions
 
 The app opens a **Permissions** panel on first launch (and any time from the button in the header — a green dot means everything is granted). Each row shows its own state: a green check when granted, an orange marker plus a one-click **去申请 / Request** button when not. No permission is ever requested by surprise in the middle of a scan.

@@ -14,10 +14,10 @@ enum SortKey: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .size: return "大小"
-        case .lastOpened: return "上次打开"
-        case .openCount: return "打开次数"
-        case .nameAsc: return "应用"
+        case .size: return t("Size")
+        case .lastOpened: return t("Last opened")
+        case .openCount: return t("Opens")
+        case .nameAsc: return t("App")
         }
     }
 
@@ -104,43 +104,43 @@ enum ResidueKind: String, CaseIterable, Codable {
 
     var label: String {
         switch self {
-        case .container: return "容器"
-        case .groupContainer: return "共享容器"
-        case .appScripts: return "脚本目录"
-        case .preferences: return "偏好"
-        case .savedState: return "窗口状态"
-        case .cache: return "缓存"
-        case .httpStorage: return "网络缓存"
-        case .webkit: return "网页数据"
-        case .applicationSupport: return "应用支持"
-        case .crashReporter: return "崩溃报告"
-        case .logs: return "日志"
-        case .launchAgent: return "自启/服务"
-        case .systemLibrary: return "系统级残留"
-        case .helperTool: return "特权工具"
-        case .packageReceipt: return "安装包收据"
-        case .iCloudContainer: return "iCloud 数据"
+        case .container: return t("Container")
+        case .groupContainer: return t("Group container")
+        case .appScripts: return t("Scripts folder")
+        case .preferences: return t("Preferences")
+        case .savedState: return t("Window state")
+        case .cache: return t("Cache")
+        case .httpStorage: return t("Web storage")
+        case .webkit: return t("WebKit data")
+        case .applicationSupport: return t("Application support")
+        case .crashReporter: return t("Crash reporter")
+        case .logs: return t("Logs")
+        case .launchAgent: return t("Launch agent")
+        case .systemLibrary: return t("System-level leftover")
+        case .helperTool: return t("Helper tool")
+        case .packageReceipt: return t("Package receipt")
+        case .iCloudContainer: return t("iCloud data")
         }
     }
 
     var explain: String {
         switch self {
-        case .container: return "沙盒应用自己的数据目录，聊天记录、数据库、下载的素材都在里面。"
-        case .groupContainer: return "同一个开发者的一组应用共享的目录，卸载时要看里面还有没有别的应用在用。"
-        case .appScripts: return "沙盒应用跑脚本时用的目录，空目录居多。"
-        case .preferences: return "偏好设置。删了应用下次打开就是默认设置。"
-        case .savedState: return "窗口位置与展开状态，删了下次打开回到默认。"
-        case .cache: return "应用自己攒的缓存，删了它会重新生成。"
-        case .httpStorage: return "网络请求缓存与 cookie，删了需要重新登录的应用会要求再登录。"
-        case .webkit: return "应用内嵌网页的本地数据（localStorage、缓存）。"
-        case .applicationSupport: return "应用的支持目录：插件、模板、本地数据库常在这里。"
-        case .crashReporter: return "旧版崩溃报告，留着只是占地方。"
-        case .logs: return "应用写的日志。"
-        case .launchAgent: return "开机自启或常驻的后台服务。卸载时必须一起处理，否则重启后它会试图拉起已经不存在的应用。"
-        case .systemLibrary: return "装在 /Library 下的系统级文件，删除需要管理员密码。"
-        case .helperTool: return "为提权安装的帮助工具，删除需要管理员密码。"
-        case .packageReceipt: return "系统记着「这个应用是用安装包装的」。留着不影响使用，清掉才叫干净。"
-        case .iCloudContainer: return "iCloud Drive 里属于这个应用的目录。删掉会同步到你的其他设备，不只是这台。"
+        case .container: return t("The app's own sandbox container: chat history, databases, downloaded assets.")
+        case .groupContainer: return t("Shared between apps from the same developer — check whether another app still uses it.")
+        case .appScripts: return t("Where a sandboxed app keeps its scripts; usually empty.")
+        case .preferences: return t("Preferences. Delete them and the app starts from defaults.")
+        case .savedState: return t("Window position and expansion state.")
+        case .cache: return t("Cache the app built up; it will recreate it.")
+        case .httpStorage: return t("HTTP cache and cookies. Apps that need a login may ask again.")
+        case .webkit: return t("Local data of web views inside the app.")
+        case .applicationSupport: return t("Plugins, templates and local databases often live here.")
+        case .crashReporter: return t("Old crash reports — they only take up space.")
+        case .logs: return t("Logs written by the app.")
+        case .launchAgent: return t("Launch-at-login or background service. It has to go with the app, otherwise it keeps trying to start something that no longer exists.")
+        case .systemLibrary: return t("Files installed under /Library; removing them needs an administrator.")
+        case .helperTool: return t("A privileged helper installed for the app; removing it needs an administrator.")
+        case .packageReceipt: return t("macOS remembers the app was installed from a package. Harmless to keep, but a clean uninstall forgets it.")
+        case .iCloudContainer: return t("Data this app keeps in iCloud Drive. Deleting it affects your other devices, not just this Mac.")
         }
     }
 
@@ -181,22 +181,22 @@ enum MatchHow: String, Codable {
     var label: String {
         switch self {
         case .exactID: return "bundle id"
-        case .idPrefix: return "bundle id 前缀"
+        case .idPrefix: return t("bundle id prefix")
         case .appGroup: return "App Group"
-        case .appName: return "应用名"
-        case .loginItem: return "自启项"
-        case .packageReceipt: return "包收据"
+        case .appName: return t("app name")
+        case .loginItem: return t("login item")
+        case .packageReceipt: return t("package receipt")
         }
     }
 
     var explain: String {
         switch self {
-        case .exactID: return "目录名与应用的 bundle id 完全一致。"
-        case .idPrefix: return "目录名以 bundle id 开头，是它的帮助程序或子组件。"
-        case .appGroup: return "应用签名里声明的共享容器 id。"
-        case .appName: return "按应用名匹配到的同名目录，目录内容里读到了这个应用的标识。"
-        case .loginItem: return "应用包里声明过的自启项 label。"
-        case .packageReceipt: return "系统安装包记录里的收据 id。"
+        case .exactID: return t("The folder name is exactly the app's bundle id.")
+        case .idPrefix: return t("The folder name starts with the bundle id — a helper or sub-component.")
+        case .appGroup: return t("A shared container id declared in the app's own signature.")
+        case .appName: return t("Matched by app name, and the app's bundle id was read inside the folder.")
+        case .loginItem: return t("A launch-item label declared inside the app bundle.")
+        case .packageReceipt: return t("A receipt id from macOS's installer records.")
         }
     }
 }
@@ -220,7 +220,7 @@ struct PlanItem: Identifiable, Hashable {
     var label: String { isAppBundle ? appName : (path as NSString).lastPathComponent }
     /// 用户能看懂的一行说明。
     var why: String {
-        if isAppBundle { return "应用本体（\(appPath)）" }
+        if isAppBundle { return t("App bundle (%@)", appPath) }
         guard let kind, let match else { return "" }
         return "\(kind.label)：\(match.explain)"
     }
@@ -241,11 +241,11 @@ struct Gate {
 
 enum Gates {
     static let all: [Gate] = [
-        .init(name: "保护名单", detail: "系统目录、Apple 自带应用、iCloud 同步根目录、工具自己的日志一律不动"),
-        .init(name: "路径形态", detail: "必须存在、不是符号链接、落在允许的目录里、层级不过浅"),
-        .init(name: "同一磁盘", detail: "只动应用所在的那块磁盘，别的磁盘与网络卷不碰"),
-        .init(name: "应用已退出", detail: "应用或它的帮助程序还在跑就先退掉；退不掉就不动它"),
-        .init(name: "不误伤", detail: "同一批里既有父目录又有子目录时只留父目录；共享容器里有别的应用就不动"),
+        .init(name: t("Protected paths"), detail: t("System paths, Apple’s apps, iCloud container roots and the tool’s own logs are never touched.")),
+        .init(name: t("Path shape"), detail: t("Must exist, must not be a symlink, must stay inside an allow-list after resolving links, and must not be too shallow.")),
+        .init(name: t("Same volume"), detail: t("Only the disk the app lives on; other disks and network volumes are left alone.")),
+        .init(name: t("App already quit"), detail: t("The app and its helpers must be gone first; if they will not quit, nothing is removed.")),
+        .init(name: t("No collateral damage"), detail: t("A parent and its child in the same batch keeps only the parent; a container two apps share is never removed.")),
     ]
 }
 
@@ -265,11 +265,11 @@ enum Format {
         guard let date else { return "—" }
         let days = Int(Date().timeIntervalSince(date) / 86400)
         switch days {
-        case ..<1: return "今天"
-        case 1: return "昨天"
-        case 2..<30: return "\(days) 天前"
-        case 30..<365: return "\(days / 30) 个月前"
-        default: return "\(days / 365) 年前"
+        case ..<1: return t("today")
+        case 1: return t("yesterday")
+        case 2..<30: return t("%d days ago", days)
+        case 30..<365: return t("%d months ago", days / 30)
+        default: return t("%d years ago", days / 365)
         }
     }
 
