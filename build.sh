@@ -101,6 +101,8 @@ hdiutil attach -quiet -nobrowse -readonly -mountpoint "$BUILD/mnt" "$DMG"
 "$BUILD/mnt/$DISPLAY.app/Contents/MacOS/$NAME" --selftest | tail -1
 codesign -v "$BUILD/mnt/$DISPLAY.app" && echo "  挂载出来的 app 签名有效"
 hdiutil detach -quiet "$BUILD/mnt"
+# 暂存目录里的那份会被 LaunchServices 记住（哪怕目录已删），顺手注销掉
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$STAGE/$DISPLAY.app" 2>/dev/null || true
 rm -rf "$STAGE" "$BUILD/mnt" "$BUILD/icon.iconset" "$BUILD/makeicon"
 
 echo ""
