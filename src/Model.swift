@@ -264,12 +264,14 @@ enum Format {
     static func age(_ date: Date?) -> String {
         guard let date else { return "—" }
         let days = Int(Date().timeIntervalSince(date) / 86400)
+        let months = days / 30
+        let years = days / 365
         switch days {
         case ..<1: return t("today")
         case 1: return t("yesterday")
         case 2..<30: return t("%d days ago", days)
-        case 30..<365: return t("%d months ago", days / 30)
-        default: return t("%d years ago", days / 365)
+        case 30..<365: return months == 1 ? t("1 month ago") : t("%d months ago", months)
+        default: return years == 1 ? t("1 year ago") : t("%d years ago", years)
         }
     }
 
