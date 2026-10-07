@@ -106,8 +106,10 @@ printf '%s' "$SELFTEST" | grep -q '带引号与空格的路径删对了' && ok "
 fi
 grep -q 'trashItem' src/Remover.swift && ok "默认走废纸篓（FileManager.trashItem）" || bad "没看到废纸篓路径"
 grep -q 'confirmed else' src/App.swift && ok "命令行卸载必须显式 --yes" || bad "命令行卸载没有 --yes 门"
-HITS=$(grep -rInE 'AXIsProcessTrusted|kTCCService|CNContactStore|EKEventStore|SFSpeechRecognizer' src/ 2>/dev/null)
-expect_empty "不申请系统权限（辅助功能 / 通讯录 / 日历 / 语音）" "$HITS"
+# 只查「申请敏感能力」的 API。注意 kTCCServiceAppManagement 是只读查询自己的 App 管理状态，
+# 属于本工具正当用途，不在禁止之列（早先一刀切写 kTCCService 造成过一次误报）。
+HITS=$(grep -rInE 'AXIsProcessTrusted|AXUIElement|CGEventTap|IOHIDManager|CNContactStore|EKEventStore|SFSpeechRecognizer|AVCaptureDevice|CLLocationManager|kTCCServiceAccessibility|kTCCServiceListenEvent|kTCCServiceScreenCapture' src/ 2>/dev/null)
+expect_empty "不申请敏感权限（辅助功能 / 输入监控 / 录屏 / 通讯录 / 日历 / 语音 / 定位）" "$HITS"
 HITS=$(grep -rInE 'URLSession|NSURLConnection|CFNetwork|Socket|https?://' src/ 2>/dev/null | grep -v 'x-apple.systempreferences' || true)
 expect_empty "源码里没有联网调用" "$HITS"
 [ -f tools/offline-test.sh ] && ok "带离线的可复跑校验脚本（tools/offline-test.sh）" || bad "缺离线校验脚本"
