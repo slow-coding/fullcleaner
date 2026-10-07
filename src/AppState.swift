@@ -140,6 +140,7 @@ final class AppState: ObservableObject {
         progressLine = "正在找残留并量体积…"
         let all = apps
         DispatchQueue.global(qos: .userInitiated).async {
+            // 累积变量必须声明在闭包里面：Swift 6 下「闭包里改外面的 var」是错误（CI 的编译器会拦）
             var items: [PlanItem] = []
             var skipped: [Skipped] = []
             for app in chosen {
@@ -154,13 +155,15 @@ final class AppState: ObservableObject {
                 skipped.append(contentsOf: set.skipped)
             }
             let (_, rejected) = Planner.preflight(items, apps: chosen)
+            let planned = items                 // 交给主队列前先取不可变副本：Swift 6 不允许并发闭包捕获可变变量
+            let skippedRows = skipped
             DispatchQueue.main.async {
-                self.plan = items
-                self.skipped = skipped
+                self.plan = planned
+                self.skipped = skippedRows
                 self.rejected = rejected
                 self.planBuilding = false
                 self.progressLine = ""
-                if items.isEmpty { self.message = "没有找到可以删的东西" }
+                if planned.isEmpty { self.message = "没有找到可以删的东西" }
             }
         }
     }

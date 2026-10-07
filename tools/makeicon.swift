@@ -59,7 +59,6 @@ func drawIcon(size: CGFloat) -> CGImage? {
                                   bitsPerComponent: 8, bytesPerRow: 0,
                                   space: CGColorSpaceCreateDeviceRGB(),
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
-    let rect = CGRect(x: 0, y: 0, width: size, height: size)
     let side = size * 0.86
     let plate = CGRect(x: (size - side) / 2, y: (size - side) / 2, width: side, height: side)
     let body = roundedSquare(rect: plate, radius: side * 0.2237)
