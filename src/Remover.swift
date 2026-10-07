@@ -19,6 +19,7 @@ struct RemovalRecord: Codable {
 }
 
 struct AppOutcome {
+    var appPath: String = ""
     var appName: String
     var removedCount: Int = 0
     var removedBytes: Int64 = 0
@@ -148,7 +149,7 @@ enum Remover {
         }
 
         for app in apps {
-            var result = AppOutcome(appName: app.name)
+            var result = AppOutcome(appPath: app.path, appName: app.name)
             let appItems = byApp[app.path] ?? []
             guard !appItems.isEmpty else { outcome.perApp.append(result); continue }
 

@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 
 NAME="fullcleaner"        # 可执行文件名、bundle id、命令行提示里用的小写名
 DISPLAY="FullCleaner"     # Finder 与界面上显示的名字
-VERSION="0.3.0"
+VERSION="0.3.1"
 BUILD="build"
 APP="$BUILD/$DISPLAY.app"
 DMG="$BUILD/$DISPLAY-$VERSION.dmg"

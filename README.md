@@ -61,6 +61,10 @@ Deletion goes to the Trash by default; root-owned items (App Store app bundles, 
 
 ![Removal plan](docs/screenshot-review.png)
 
+When it finishes, the result sheet is a single green check with what was removed and where it went — failures, if any, are one line, not a wall of red:
+
+![Result](docs/screenshot-result.png)
+
 ## Permissions
 
 The app opens a **Permissions** panel on first launch (and any time from the button in the header — a green dot means everything is granted). Each row shows its own state: a green check when granted, an orange marker plus a one-click **去申请 / Request** button when not. No permission is ever requested by surprise in the middle of a scan.

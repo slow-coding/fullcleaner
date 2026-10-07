@@ -533,36 +533,58 @@ struct ResultSheet: View {
 
     var body: some View {
         let outcome = state.outcome
-        VStack(alignment: .leading, spacing: 12) {
-            Text("已移除 \(outcome?.totalRemoved ?? 0) 项 · \(Format.size(outcome?.totalBytes ?? 0))")
-                .font(.system(size: 15, weight: .semibold))
+        let removed = outcome?.totalRemoved ?? 0
+        let bytes = outcome?.totalBytes ?? 0
+        let failures = outcome?.allFailures ?? []
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(outcome?.perApp ?? [], id: \.appName) { result in
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("\(result.appName)：移除 \(result.removedCount) 项 · \(Format.size(result.removedBytes))")
-                                .font(.system(size: 12, weight: .medium))
-                            ForEach(result.notes, id: \.self) { note in
-                                Text(note).font(.system(size: 10.5)).foregroundStyle(.secondary)
-                            }
-                            ForEach(result.failures, id: \.path) { failure in
-                                Text("没动：\(failure.reason)（\(Format.short(failure.path))）")
-                                    .font(.system(size: 10.5))
-                                    .foregroundStyle(.orange)
-                                    .lineLimit(1)
-                            }
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle().fill(Color.green.opacity(0.16)).frame(width: 52, height: 52)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(.green)
+                }
+                .scaleEffect(state.resultPulse ? 1 : 0.75)
+                .opacity(state.resultPulse ? 1 : 0)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(removed > 0 ? "已移除 \(removed) 项" : "没有要移除的东西")
+                        .font(.system(size: 19, weight: .semibold))
+                    Text(bytes > 0 ? "\(Format.size(bytes)) 进了废纸篓，随时可以拖回来" : " ")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .opacity(state.resultPulse ? 1 : 0)
+
+            if !failures.isEmpty {
+                Text("有 \(failures.count) 项没动：\(failures.prefix(2).map { $0.reason }.joined(separator: "；"))")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.orange)
+                    .lineLimit(2)
+                    .help(failures.map { "\($0.reason) —— \(Format.short($0.path))" }.joined(separator: "\n"))
+            }
+
+            HStack(spacing: 8) {
+                ForEach(outcome?.perApp ?? [], id: \.appName) { result in
+                    if result.removedCount > 0 {
+                        HStack(spacing: 6) {
+                            Image(nsImage: NSWorkspace.shared.icon(forFile: state.app(for: result.appPath)?.icon ?? "/Applications"))
+                                .resizable().frame(width: 14, height: 14)
+                            Text(result.appName).font(.system(size: 11.5))
+                            Text(Format.size(result.removedBytes))
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(.secondary)
                         }
-                    }
-                    if let skipped = outcome?.skippedCount, skipped > 0 {
-                        Text("另有 \(skipped) 项无法确认归属，未删（见日志）")
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color(nsColor: .controlBackgroundColor)))
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer()
             }
-            .frame(height: 200)
 
             HStack {
                 Button("打开废纸篓") { state.openTrash() }.controlSize(.small)
@@ -571,7 +593,11 @@ struct ResultSheet: View {
                 Button("好") { state.sheet = nil }
             }
         }
-        .padding(18)
-        .frame(width: 620, height: 380)
+        .padding(20)
+        .frame(width: 520)
+        .onAppear {
+            state.resultPulse = false
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.7)) { state.resultPulse = true }
+        }
     }
 }

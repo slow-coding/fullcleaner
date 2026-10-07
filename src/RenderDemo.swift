@@ -106,7 +106,7 @@ enum RenderDemo {
         let state = demoState()
         var outcome = Outcome()
         outcome.logPath = "~/Library/Logs/fullcleaner/20261007-181500-uninstall.jsonl"
-        var first = AppOutcome(appName: "Foo Studio")
+        var first = AppOutcome(appPath: "/Applications/Foo Studio.app", appName: "Foo Studio")
         first.removedCount = 8
         first.removedBytes = 1_540_000_000
         first.notes = ["重置了权限记录：com.example.foostudio",
@@ -115,14 +115,15 @@ enum RenderDemo {
         first.failures = [Rejection(path: "~/Library/Caches/com.example.foostudio",
                                     appName: "Foo Studio",
                                     reason: "删完路径还在（还有进程在写）", gate: "复核")]
-        var second = AppOutcome(appName: "Line Tool")
+        var second = AppOutcome(appPath: "/Applications/Line Tool.app", appName: "Line Tool")
         second.removedCount = 3
         second.removedBytes = 38_400_000
         outcome.perApp = [first, second]
         outcome.skippedCount = 2
         state.outcome = outcome
+        state.resultPulse = true
         state.sheet = .result
-        return render(AnyView(ResultSheet(state: state)), width: 620, height: 420, to: path)
+        return render(AnyView(ResultSheet(state: state)), width: 520, height: 250, to: path)
     }
 
     @MainActor

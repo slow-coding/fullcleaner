@@ -30,6 +30,7 @@ final class AppState: ObservableObject {
     @Published var confirmText: String = ""
     @Published var outcome: Outcome? = nil
     @Published var progressLine: String = ""
+    @Published var resultPulse = false      // 结果页那个对号的入场动画（SwiftUI 的 @State 在命令行编译下用不了）
     @Published var lastScanFinished: Date? = nil
     @Published var permissionRows: [PermissionRow] = []
     @Published var message: String = ""
@@ -240,6 +241,7 @@ final class AppState: ObservableObject {
             }
             DispatchQueue.main.async {
                 self.outcome = result
+                self.resultPulse = false
                 self.sheet = .result
                 self.plan = []
                 self.skipped = []
