@@ -83,10 +83,10 @@ struct ContentView: View {
                 .toggleStyle(.checkbox)
                 .controlSize(.small)
                 .help("系统自带的应用受 SIP 保护，本工具不卸载，只列出来让你看清全貌")
-            if !state.selection.isEmpty {
-                Button("全部取消") { state.clearSelection() }
-                    .controlSize(.small)
-            }
+            Button("全部取消") { state.clearSelection() }
+                .controlSize(.small)
+                .disabled(state.selection.isEmpty)
+                .opacity(state.selection.isEmpty ? 0 : 1)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -214,7 +214,7 @@ struct ContentView: View {
             .frame(width: Col.residue, alignment: .trailing)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 7)
+        .frame(height: 38)                       // 行高钉死：选中/取消都不会让整页高度抖一下
         .contentShape(Rectangle())
         .onTapGesture { state.toggle(app) }
         .onHover { inside in
@@ -254,10 +254,9 @@ struct ContentView: View {
 
     private var footer: some View {
         HStack(spacing: 10) {
-            if !state.selection.isEmpty {
-                Text("已选 \(state.selectedApps.count) 个 · \(Format.size(state.selectedBytes))")
-                    .font(.system(size: 12, weight: .medium))
-            }
+            Text(state.selection.isEmpty ? " " : "已选 \(state.selectedApps.count) 个 · \(Format.size(state.selectedBytes))")
+                .font(.system(size: 12, weight: .medium))
+                .lineLimit(1)
             Spacer()
             Button("打开日志目录") { state.openLogFolder() }
                 .controlSize(.small)

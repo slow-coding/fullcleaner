@@ -84,6 +84,7 @@ enum ResidueScanner {
             guard !entry.hasPrefix(".") else { continue }
             let stem = stripSuffix ? (entry as NSString).deletingPathExtension : entry
             guard let how = matcher.match(stem, kind: kind, nameMatching: nameMatching, prefixName: prefixName) else { continue }
+            Trace.mark("  match \(matcher.app.bundleID) ← \(entry) [\(how.rawValue)]")
             let path = root + "/" + entry
             // 自启项再多问一句：plist 里必须提到这个应用，避免同名 label 误伤
             if kind == .launchAgent, !launchItemBelongsTo(app: matcher.app, path: path) { continue }

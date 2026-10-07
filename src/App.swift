@@ -69,7 +69,8 @@ struct FullCleanerApp: App {
         WindowGroup("FullCleaner") {
             ContentView(state: state)
         }
-        .defaultSize(width: 760, height: 640)
+        .defaultSize(width: 820, height: 640)
+        .windowResizability(.contentMinSize)     // 只有用户能改窗口大小，内容变化不带动它
         .commands { CommandGroup(replacing: .newItem) {} }
     }
 }

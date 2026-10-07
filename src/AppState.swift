@@ -101,7 +101,7 @@ final class AppState: ObservableObject {
         let list = apps
         let flag = stopFlagForCounting          // 值捕获：Swift 6 下闭包里不能直接读主 actor 的属性
         DispatchQueue.global(qos: .utility).async {
-            for app in list {
+            for app in list where !app.protected {      // 系统自带应用不数残留：它们不能被卸，而且会去碰 Music 这类路径
                 if flag.stopped { return }
                 let count = ResidueScanner.residues(for: app, measure: false).count
                 DispatchQueue.main.async {
