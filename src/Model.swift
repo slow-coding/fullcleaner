@@ -15,37 +15,44 @@ enum SortKey: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .size: return "大小"
-        case .lastOpened: return "上次打开时间"
+        case .lastOpened: return "上次打开"
         case .openCount: return "打开次数"
-        case .nameAsc: return "名称 A→Z"
+        case .nameAsc: return "应用"
         }
     }
 
-    /// 纯函数：没有时间的（—）永远排在后面，不参与比较。
-    static func sorted(_ apps: [AppItem], by key: SortKey) -> [AppItem] {
+    /// 表头第一次点这个列时的方向：数字列从大到小，名称从 A 到 Z。
+    var defaultAscending: Bool { self == .nameAsc }
+
+    /// 纯函数：没有时间或次数的（—）永远排在后面，不参与方向翻转。
+    /// ascending = true 表示这个列顺着排（名称 A→Z、数字从小到大）。
+    static func sorted(_ apps: [AppItem], by key: SortKey, ascending: Bool) -> [AppItem] {
+        func nameOrder(_ a: AppItem, _ b: AppItem) -> Bool {
+            a.name.localizedStandardCompare(b.name) == .orderedAscending
+        }
         switch key {
         case .size:
-            return apps.sorted { $0.bytes > $1.bytes }
+            return apps.sorted { ascending ? $0.bytes < $1.bytes : $0.bytes > $1.bytes }
         case .lastOpened:
             return apps.sorted { a, b in
                 switch (a.lastOpened, b.lastOpened) {
-                case let (x?, y?): return x > y            // 最近打开的在上
-                case (nil, _?): return false
+                case let (x?, y?): return ascending ? x < y : x > y
+                case (nil, _?): return false      // 没记录的永远在后
                 case (_?, nil): return true
-                case (nil, nil): return a.name.localizedStandardCompare(b.name) == .orderedAscending
+                case (nil, nil): return nameOrder(a, b)
                 }
             }
         case .openCount:
             return apps.sorted { a, b in
                 switch (a.openCount, b.openCount) {
-                case let (x?, y?): return x > y
+                case let (x?, y?): return ascending ? x < y : x > y
                 case (nil, _?): return false
                 case (_?, nil): return true
-                case (nil, nil): return a.name.localizedStandardCompare(b.name) == .orderedAscending
+                case (nil, nil): return nameOrder(a, b)
                 }
             }
         case .nameAsc:
-            return apps.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            return apps.sorted { ascending ? nameOrder($0, $1) : nameOrder($1, $0) }
         }
     }
 }

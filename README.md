@@ -40,7 +40,7 @@ Hard gates run before anything is deleted:
 
 Install: open `FullCleaner-<version>.dmg` and drag **FullCleaner** into Applications. Builds are ad-hoc signed and not notarized, so the first launch may need **right-click → Open** (or `xattr -d com.apple.quarantine /Applications/FullCleaner.app`).
 
-GUI: check one or more apps (the table shows size, last opened, launch count, leftover count) → **下一步 / Next** → review the list → **Uninstall**.
+GUI: check one or more apps (the table shows size, last opened, launch count, leftover count — **click a column header to sort by it, click again to reverse**) → **Next** → review the list → **Uninstall**.
 
 CLI (same binary):
 

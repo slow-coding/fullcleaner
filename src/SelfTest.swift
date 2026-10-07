@@ -177,13 +177,20 @@ enum SelfTest {
         let apps = [app("Beta", bytes: 100, daysAgo: 5, opens: 900),
                     app("alpha", bytes: 300, daysAgo: nil, opens: nil),
                     app("Gamma", bytes: 200, daysAgo: 40, opens: 3)]
-        check(SortKey.sorted(apps, by: .size).map { $0.name } == ["alpha", "Gamma", "Beta"], "按大小：大的在前")
-        check(SortKey.sorted(apps, by: .lastOpened).map { $0.name } == ["Beta", "Gamma", "alpha"],
-              "按上次打开时间：最近打开的在上，没时间的排最后")
-        check(SortKey.sorted(apps, by: .openCount).map { $0.name } == ["Beta", "Gamma", "alpha"],
+        check(SortKey.sorted(apps, by: .size, ascending: false).map { $0.name } == ["alpha", "Gamma", "Beta"],
+              "按大小降序：大的在前")
+        check(SortKey.sorted(apps, by: .size, ascending: true).map { $0.name } == ["Beta", "Gamma", "alpha"],
+              "再点一次（升序）：小的在前")
+        check(SortKey.sorted(apps, by: .lastOpened, ascending: false).map { $0.name } == ["Beta", "Gamma", "alpha"],
+              "按上次打开时间：默认最近的在最上，没时间的排最后")
+        check(SortKey.sorted(apps, by: .lastOpened, ascending: true).map { $0.name } == ["Gamma", "Beta", "alpha"],
+              "翻转后：最久没打开的在前，没时间的仍在最后")
+        check(SortKey.sorted(apps, by: .openCount, ascending: false).map { $0.name } == ["Beta", "Gamma", "alpha"],
               "按打开次数：次数多的在前，没次数的排最后")
-        check(SortKey.sorted(apps, by: .nameAsc).map { $0.name } == ["alpha", "Beta", "Gamma"],
+        check(SortKey.sorted(apps, by: .nameAsc, ascending: true).map { $0.name } == ["alpha", "Beta", "Gamma"],
               "按名称 A→Z（不区分大小写）")
+        check(SortKey.sorted(apps, by: .nameAsc, ascending: false).map { $0.name } == ["Gamma", "Beta", "alpha"],
+              "名称翻转：Z→A")
     }
 
     // MARK: - 进清单的范围（拿不准的不进清单、不问用户）

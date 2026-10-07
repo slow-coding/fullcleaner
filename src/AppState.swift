@@ -14,6 +14,9 @@ final class AppState: ObservableObject {
     @Published var sortKey: SortKey = SortKey(rawValue: UserDefaults.standard.string(forKey: "sortKey") ?? "") ?? .size {
         didSet { UserDefaults.standard.set(sortKey.rawValue, forKey: "sortKey") }
     }
+    @Published var sortAscending: Bool = UserDefaults.standard.object(forKey: "sortAscending") as? Bool ?? false {
+        didSet { UserDefaults.standard.set(sortAscending, forKey: "sortAscending") }
+    }
     @Published var scanning: Bool = true
     @Published var phase: String = "正在扫描已安装的应用…"
     @Published var scanningLine: String = ""
@@ -110,7 +113,7 @@ final class AppState: ObservableObject {
         if !showSystem { rows = rows.filter { !$0.protected } }
         let text = query.trimmingCharacters(in: .whitespaces).lowercased()
         if !text.isEmpty { rows = rows.filter { $0.name.lowercased().contains(text) } }
-        return SortKey.sorted(rows, by: sortKey)
+        return SortKey.sorted(rows, by: sortKey, ascending: sortAscending)
     }
 
     var selectedApps: [AppItem] { apps.filter { selection.contains($0.path) } }
@@ -128,6 +131,16 @@ final class AppState: ObservableObject {
     }
 
     func clearSelection() { selection = [] }
+
+    /// 点表头：换列就用该列的默认方向，点同一列则翻转方向。
+    func sort(by key: SortKey) {
+        if sortKey == key {
+            sortAscending.toggle()
+        } else {
+            sortKey = key
+            sortAscending = key.defaultAscending
+        }
+    }
 
     // MARK: - 清单
 

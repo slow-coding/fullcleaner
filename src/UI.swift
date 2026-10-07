@@ -65,15 +65,6 @@ struct ContentView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
             Spacer()
-            Picker("", selection: $state.sortKey) {
-                ForEach(SortKey.allCases) { key in
-                    Text(key.label).tag(key)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .frame(width: 128)
-            .help("列表排序方式")
             Toggle("显示系统自带（\(state.systemCount)）", isOn: $state.showSystem)
                 .toggleStyle(.checkbox)
                 .controlSize(.small)
@@ -113,16 +104,47 @@ struct ContentView: View {
     private var tableHeader: some View {
         HStack(spacing: 8) {
             Color.clear.frame(width: Col.lead, height: 1)
-            Text("应用").frame(maxWidth: .infinity, alignment: .leading)
-            Text("大小").frame(width: Col.size, alignment: .trailing)
-            Text("上次打开").frame(width: Col.opened, alignment: .trailing)
-            Text("打开次数").frame(width: Col.opens, alignment: .trailing)
-            Text("残留").frame(width: Col.residue, alignment: .trailing)
+            headerCell(.nameAsc, width: nil, trailing: false)
+            headerCell(.size, width: Col.size, trailing: true)
+            headerCell(.lastOpened, width: Col.opened, trailing: true)
+            headerCell(.openCount, width: Col.opens, trailing: true)
+            Text("残留")
+                .foregroundStyle(.secondary)
+                .frame(width: Col.residue, alignment: .trailing)
+                .help("不给排序：这一列的数字是后台一条条数出来的")
         }
         .font(.system(size: 10.5, weight: .medium))
-        .foregroundStyle(.secondary)
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
+    }
+
+    /// 表头一格：点一下按这一列排序，再点一下换方向；当前排序列显示箭头。
+    private func headerCell(_ key: SortKey, width: CGFloat?, trailing: Bool) -> some View {
+        let active = state.sortKey == key
+        let label = HStack(spacing: 3) {
+            if trailing { Spacer(minLength: 0) }
+            Text(key.label)
+            if active {
+                Image(systemName: state.sortAscending ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            if !trailing { Spacer(minLength: 0) }
+        }
+        .foregroundStyle(active ? Color.primary : Color.secondary)
+
+        let button = Button { state.sort(by: key) } label: {
+            label.contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("按「\(key.label)」排序，再点一次换方向")
+
+        return Group {
+            if let width {
+                button.frame(width: width)
+            } else {
+                button.frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 
     private func row(_ app: AppItem) -> some View {
