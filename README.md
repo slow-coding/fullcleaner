@@ -47,9 +47,9 @@ CLI (same binary):
 ```sh
 fullcleaner --list                          # installed apps with sizes, last opened, launch count
 fullcleaner --list --json
-fullcleaner --plan "Docker"                 # print the removal plan for one app; read-only
-fullcleaner --plan com.docker.docker --json
-fullcleaner --uninstall "Docker" --yes      # execute (requires --yes)
+fullcleaner --plan "Example"                # print the removal plan for one app; read-only
+fullcleaner --plan com.example.app --json
+fullcleaner --uninstall "Example" --yes     # execute (requires --yes)
 fullcleaner --permissions                   # system permission status (two items only)
 fullcleaner --selftest                      # run the 72-assertion self test in a temp sandbox
 fullcleaner --help
