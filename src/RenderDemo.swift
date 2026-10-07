@@ -35,6 +35,7 @@ enum RenderDemo {
         state.residueCount = ["/Applications/Foo Studio.app": 8, "/Applications/Line Tool.app": 3]
         state.scanning = false
         state.showSystem = true        // 出图时把系统自带那条也画出来，方便核对行的差别
+        state.cacheIconsForDemo()
         state.sortKey = .lastOpened
         state.sortAscending = false
         state.suppressAutoStart = true

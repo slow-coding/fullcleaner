@@ -19,6 +19,7 @@ enum Shell {
     @discardableResult
     static func run(_ executable: String, _ args: [String],
                     timeout: TimeInterval = 60, stop: StopFlag? = nil) -> (status: Int32, output: String) {
+        Trace.mark("run \(executable) \(args.prefix(2).joined(separator: " "))")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = args
@@ -190,6 +191,7 @@ enum Sandbox {
 /// 量目录体积：按文件实际占用的块数算（跟 Finder 的「大小」一致）。
 enum Sizer {
     static func bytes(of path: String, stop: StopFlag? = nil) -> Int64 {
+        Trace.mark("size \(path)")
         let url = URL(fileURLWithPath: path)
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else { return 0 }
@@ -215,6 +217,7 @@ enum Sizer {
     }
 
     static func modified(of path: String) -> Date? {
-        (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
+        Trace.mark("mod \(path)")
+        return (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
     }
 }

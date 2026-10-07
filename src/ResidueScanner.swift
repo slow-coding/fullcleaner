@@ -77,6 +77,7 @@ enum ResidueScanner {
                                 prefixName: Bool = false, label: String? = nil) {
         let manager = FileManager.default
         guard manager.fileExists(atPath: root) else { return }
+        Trace.mark("root \(root)")
         let entries = (try? manager.contentsOfDirectory(atPath: root)) ?? []
         for entry in entries.sorted() {
             if stop?.stopped == true { return }

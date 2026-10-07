@@ -22,6 +22,7 @@ enum AppScanner {
     }
 
     static func scan(stop: StopFlag? = nil, onEach: ((AppItem) -> Void)? = nil) -> [AppItem] {
+        Trace.mark("scan.begin")
         var found: [AppItem] = []
         var seen = Set<String>()
         for spec in specs {
@@ -34,6 +35,7 @@ enum AppScanner {
                 onEach?(item)
             }
         }
+        Trace.mark("scan.end \(found.count)")
         return found.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
@@ -70,6 +72,7 @@ enum AppScanner {
         let name = (info["CFBundleDisplayName"] as? String)
             ?? (info["CFBundleName"] as? String)
             ?? fileName
+        Trace.mark("app \(name) [\(path)]")
         let entitlements = entitlements(of: path)
         let groups = (entitlements["com.apple.security.application-groups"] as? [String]) ?? []
         let iCloud = (entitlements["com.apple.developer.icloud-container-identifiers"] as? [String]) ?? []
@@ -100,6 +103,7 @@ enum AppScanner {
     /// 上次打开：Spotlight 的 kMDItemLastUseDate 在多数机器上是空的，
     /// 可执行文件的访问时间（APFS 会更新）是可靠的近似——应用一启动，系统就读这个文件。
     static func lastOpened(path: String, executable: String) -> Date? {
+        Trace.mark("  mditem \(path)")
         if let item = MDItemCreateWithURL(nil, URL(fileURLWithPath: path) as CFURL),
            let value = MDItemCopyAttribute(item, "kMDItemLastUseDate" as CFString) as? Date {
             return value
@@ -119,6 +123,7 @@ enum AppScanner {
 
     /// 签名里声明的授权（App Group、iCloud 容器都在这里）。
     static func entitlements(of path: String) -> [String: Any] {
+        Trace.mark("  entitlements \(path)")
         var staticCode: SecStaticCode?
         guard SecStaticCodeCreateWithPath(URL(fileURLWithPath: path) as CFURL, [], &staticCode) == errSecSuccess,
               let code = staticCode else { return [:] }

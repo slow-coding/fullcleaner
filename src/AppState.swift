@@ -7,15 +7,17 @@ import AppKit
 @MainActor
 final class AppState: ObservableObject {
     @Published var apps: [AppItem] = []
-    @Published var query: String = ""
+    @Published var query: String = "" { didSet { refreshVisibleRows() } }
     @Published var selection: Set<String> = []          // 勾中的应用 path
-    @Published var showSystem: Bool = false
+    @Published var showSystem: Bool = false { didSet { refreshVisibleRows() } }
     @Published var hovered: String?
+    @Published private(set) var icons: [String: NSImage] = [:]
+    @Published private(set) var visibleRows: [AppItem] = []
     @Published var sortKey: SortKey = SortKey(rawValue: UserDefaults.standard.string(forKey: "sortKey") ?? "") ?? .size {
-        didSet { UserDefaults.standard.set(sortKey.rawValue, forKey: "sortKey") }
+        didSet { UserDefaults.standard.set(sortKey.rawValue, forKey: "sortKey"); refreshVisibleRows() }
     }
     @Published var sortAscending: Bool = UserDefaults.standard.object(forKey: "sortAscending") as? Bool ?? false {
-        didSet { UserDefaults.standard.set(sortAscending, forKey: "sortAscending") }
+        didSet { UserDefaults.standard.set(sortAscending, forKey: "sortAscending"); refreshVisibleRows() }
     }
     @Published var scanning: Bool = true
     @Published var phase: String = "正在扫描已安装的应用…"
@@ -70,6 +72,7 @@ final class AppState: ObservableObject {
         residueCount = [:]
         selection = []
         scanningLine = ""
+        visibleRows = []
         let flag = stopFlag
         DispatchQueue.global(qos: .userInitiated).async {
             var found: [AppItem] = []
@@ -82,6 +85,8 @@ final class AppState: ObservableObject {
             }
             DispatchQueue.main.async {
                 self.apps = result
+                self.cacheIcons(for: result)
+                self.refreshVisibleRows()
                 self.scanning = false
                 self.lastScanFinished = Date()
                 self.scanningLine = ""
@@ -117,12 +122,29 @@ final class AppState: ObservableObject {
 
     // MARK: - 列表
 
-    var visible: [AppItem] {
+    var visible: [AppItem] { visibleRows }
+
+    /// 列表每次变化（搜索、排序、显示系统应用、扫描完成）只重算一次，别在 body 里反复算。
+    func refreshVisibleRows() {
         var rows = apps
         if !showSystem { rows = rows.filter { !$0.protected } }
         let text = query.trimmingCharacters(in: .whitespaces).lowercased()
         if !text.isEmpty { rows = rows.filter { $0.name.lowercased().contains(text) } }
-        return SortKey.sorted(rows, by: sortKey, ascending: sortAscending)
+        visibleRows = SortKey.sorted(rows, by: sortKey, ascending: sortAscending)
+    }
+
+    /// 图标一次性取好：NSWorkspace.icon 每帧每行都调会很卡（这是列表不顺滑的主因）。
+    private func cacheIcons(for list: [AppItem]) {
+        var cache: [String: NSImage] = [:]
+        for app in list { cache[app.path] = NSWorkspace.shared.icon(forFile: app.icon) }
+        icons = cache
+    }
+
+    /// 出图用：把演示数据的图标也先缓存好。
+    func cacheIconsForDemo() { cacheIcons(for: apps) }
+
+    func icon(for app: AppItem) -> NSImage {
+        icons[app.path] ?? NSWorkspace.shared.icon(forFile: app.icon)
     }
 
     var selectedApps: [AppItem] { apps.filter { selection.contains($0.path) } }

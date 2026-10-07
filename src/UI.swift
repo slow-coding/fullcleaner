@@ -96,23 +96,26 @@ struct ContentView: View {
         VStack(spacing: 0) {
             tableHeader
             Divider().opacity(0.5)
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(state.visible) { app in
-                        row(app)
-                        if app.id != state.visible.last?.id {
-                            Divider().opacity(0.16).padding(.leading, Col.lead)
-                        }
-                    }
-                    if state.visible.isEmpty {
-                        Text(state.scanning ? "正在扫描…" : "没有匹配的应用")
-                            .foregroundStyle(.secondary)
-                            .padding(24)
-                    }
+            // 用原生 List：底层是 NSTableView，滚动比 ScrollView+LazyVStack 顺，行还有复用
+            List {
+                ForEach(state.visible) { app in
+                    row(app)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .listRowBackground(rowBackground(app,
+                                                        checked: state.selection.contains(app.path),
+                                                        hovered: state.hovered == app.path))
+                }
+                if state.visible.isEmpty {
+                    Text(state.scanning ? "正在扫描…" : "没有匹配的应用")
+                        .foregroundStyle(.secondary)
+                        .padding(20)
+                        .listRowSeparator(.hidden)
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color(nsColor: .textBackgroundColor))
         }
-        .background(Color(nsColor: .textBackgroundColor))
     }
 
     private var tableHeader: some View {
@@ -163,14 +166,13 @@ struct ContentView: View {
 
     private func row(_ app: AppItem) -> some View {
         let checked = state.selection.contains(app.path)
-        let isHovered = state.hovered == app.path
         return HStack(spacing: 8) {
             HStack(spacing: 8) {
                 Toggle("", isOn: Binding(get: { checked }, set: { _ in state.toggle(app) }))
                     .labelsHidden()
                     .toggleStyle(.checkbox)
                     .disabled(app.protected)
-                Image(nsImage: NSWorkspace.shared.icon(forFile: app.icon))
+                Image(nsImage: state.icon(for: app))
                     .resizable().frame(width: 22, height: 22)
                     .opacity(app.protected ? 0.45 : 1)
             }
@@ -213,7 +215,6 @@ struct ContentView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
-        .background(rowBackground(app, checked: checked, hovered: isHovered))
         .contentShape(Rectangle())
         .onTapGesture { state.toggle(app) }
         .onHover { inside in
@@ -396,7 +397,7 @@ struct ReviewSheet: View {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(state.planByApp, id: \.0.path) { app, rows in
                     HStack(spacing: 8) {
-                        Image(nsImage: NSWorkspace.shared.icon(forFile: app.icon))
+                        Image(nsImage: state.icon(for: app))
                             .resizable().frame(width: 18, height: 18)
                         Text(app.name).font(.system(size: 12.5, weight: .semibold))
                         Text("\(rows.filter { $0.checked }.count)/\(rows.count) 项 · \(Format.size(rows.filter { $0.checked }.reduce(0) { $0 + $1.bytes }))")
@@ -571,7 +572,8 @@ struct ResultSheet: View {
                 ForEach(outcome?.perApp ?? [], id: \.appName) { result in
                     if result.removedCount > 0 {
                         HStack(spacing: 6) {
-                            Image(nsImage: NSWorkspace.shared.icon(forFile: state.app(for: result.appPath)?.icon ?? "/Applications"))
+                            Image(nsImage: state.app(for: result.appPath).map { state.icon(for: $0) }
+                                  ?? NSWorkspace.shared.icon(forFile: "/Applications"))
                                 .resizable().frame(width: 14, height: 14)
                             Text(result.appName).font(.system(size: 11.5))
                             Text(Format.size(result.removedBytes))

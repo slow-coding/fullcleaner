@@ -109,11 +109,13 @@ enum Planner {
                                   kind: nil, match: nil, needsAdmin: app.rootOwned, checked: true)
             bundle.modified = app.modified
             if app.protected {
+                // 系统自带 / Apple 应用不能被卸载：连残留都不去扫。
+                // 扫它们没有任何用处，还会白碰 Music、Photos 这类系统应用的路径（会招来系统的媒体库弹窗）。
                 set.skipped.append(Skipped(path: app.path, appName: app.name, reason: "系统自带或 Apple 的应用"))
-            } else {
-                set.items.append(bundle)
-                onEach?(bundle)
+                continue
             }
+            set.items.append(bundle)
+            onEach?(bundle)
 
             for hit in ResidueScanner.residues(for: app, stop: stop) {
                 // 共享容器：别人也在用 → 跳过（不问用户，也不删）

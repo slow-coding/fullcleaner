@@ -127,6 +127,8 @@ Set `SIGN_IDENTITY="Developer ID Application: …"` to sign with a real certific
 - **Login-item records in System Settings** may linger as a greyed row until the next login; the runtime service itself is unloaded with `launchctl`.
 - **Name-only matches are skipped**, so the plan is not necessarily "every trace of the app on disk". Skipped items are counted and logged.
 - On recent macOS versions the system may ask for consent the first time the app reads inside another app's container (that is how name matches get verified).
+- macOS may ask once about **Apple Music / media library** access. FullCleaner does not need it — deny it and nothing changes. It appears because the app enumerates installed apps (including Music); scans of system apps' leftovers were removed in 0.4.0, which stops the trigger in testing. Rebuilding the app changes its ad-hoc signature, and macOS then treats it as a different app and may ask again — that is a packaging artifact, not a missing feature.
+- Debugging aid for exactly that class of problem: `defaults write local.fullcleaner debugTrace -bool YES` makes the app log every scan step (which app, which path, which subprocess) to `~/Library/Logs/fullcleaner/trace.log`, so a system prompt can be traced to the call that caused it.
 - Tested on macOS 13–27. Shipped as a universal binary; only Apple silicon was available for testing (x86_64 was exercised through Rosetta).
 - Deleting through the Trash does not free space until you empty it.
 
