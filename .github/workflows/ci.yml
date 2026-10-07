@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 工具链
+        run: swift --version
+
+      # build.sh 自己会做：编译 → 无联网静态检查 → 画图标 → 组装 .app → 自检 → 打 dmg
+      # 自检在临时样本目录里跑完整的判据与删除流程（不碰真实系统）
+      - name: 构建 + 自检
+        run: ./build.sh
+
+      - name: 离线校验（源码 / 二进制 / 运行期三层）
+        run: ./tools/offline-test.sh
+
+      - name: 发布前检查
+        run: |
+          # 审计会检查「这个仓库的身份不是个人邮箱」。CI 是全新克隆，先设一个中性身份
+          git config --local user.name "ci"
+          git config --local user.email "ci@users.noreply.github.com"
+          ./tools/oss-audit.sh
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: FullCleaner-dmg
+          path: build/FullCleaner-*.dmg

@@ -1,0 +1,448 @@
+// 界面：应用列表（多选）→「下一步」→ 深度扫描 → 卸载清单 → 执行 → 结果。
+// 规矩：每行只留名字 / 路径 / 大小 / 徽标；机制解释进悬停提示；
+// 拿不准的条目根本不进清单（判断归属是工具的事，不该问用户）。
+
+import SwiftUI
+import AppKit
+
+struct ContentView: View {
+    @ObservedObject var state: AppState
+
+    // 表格列宽：一处定义，表头与数据行共用
+    private enum Col {
+        static let lead: CGFloat = 56        // 勾选框 + 图标
+        static let size: CGFloat = 88
+        static let opened: CGFloat = 108
+        static let opens: CGFloat = 84
+        static let residue: CGFloat = 72
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            toolbar
+            Divider()
+            list
+            Divider()
+            footer
+        }
+        .frame(minWidth: 640, minHeight: 520)
+        .sheet(item: $state.sheet) { sheet in
+            switch sheet {
+            case .review: ReviewSheet(state: state)
+            case .running: RunningSheet(state: state)
+            case .result: ResultSheet(state: state)
+            }
+        }
+        .onAppear { state.start() }
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text("已装 \(state.apps.count) 个应用 · 合计 \(Format.size(state.apps.reduce(0) { $0 + $1.bytes }))")
+                .font(.system(size: 15, weight: .semibold))
+            if state.scanning {
+                ProgressView().controlSize(.small)
+                Text(state.scanningLine)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Button("重新扫描") { state.scan() }
+                .controlSize(.small)
+                .disabled(state.scanning)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private var toolbar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary).font(.system(size: 11))
+            TextField("搜索应用", text: $state.query)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+            Spacer()
+            Picker("", selection: $state.sortKey) {
+                ForEach(SortKey.allCases) { key in
+                    Text(key.label).tag(key)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(width: 128)
+            .help("列表排序方式")
+            Toggle("显示系统自带（\(state.systemCount)）", isOn: $state.showSystem)
+                .toggleStyle(.checkbox)
+                .controlSize(.small)
+                .help("系统自带的应用受 SIP 保护，本工具不卸载，只列出来让你看清全貌")
+            if !state.selection.isEmpty {
+                Button("全部取消") { state.clearSelection() }
+                    .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
+    private var list: some View {
+        VStack(spacing: 0) {
+            tableHeader
+            Divider().opacity(0.5)
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(state.visible) { app in
+                        row(app)
+                        if app.id != state.visible.last?.id {
+                            Divider().opacity(0.16).padding(.leading, Col.lead)
+                        }
+                    }
+                    if state.visible.isEmpty {
+                        Text(state.scanning ? "正在扫描…" : "没有匹配的应用")
+                            .foregroundStyle(.secondary)
+                            .padding(24)
+                    }
+                }
+            }
+        }
+        .background(Color(nsColor: .textBackgroundColor))
+    }
+
+    private var tableHeader: some View {
+        HStack(spacing: 8) {
+            Color.clear.frame(width: Col.lead, height: 1)
+            Text("应用").frame(maxWidth: .infinity, alignment: .leading)
+            Text("大小").frame(width: Col.size, alignment: .trailing)
+            Text("上次打开").frame(width: Col.opened, alignment: .trailing)
+            Text("打开次数").frame(width: Col.opens, alignment: .trailing)
+            Text("残留").frame(width: Col.residue, alignment: .trailing)
+        }
+        .font(.system(size: 10.5, weight: .medium))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+    }
+
+    private func row(_ app: AppItem) -> some View {
+        let checked = state.selection.contains(app.path)
+        let isHovered = state.hovered == app.path
+        return HStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Toggle("", isOn: Binding(get: { checked }, set: { _ in state.toggle(app) }))
+                    .labelsHidden()
+                    .toggleStyle(.checkbox)
+                    .disabled(app.protected)
+                Image(nsImage: NSWorkspace.shared.icon(forFile: app.icon))
+                    .resizable().frame(width: 22, height: 22)
+                    .opacity(app.protected ? 0.45 : 1)
+            }
+            .frame(width: Col.lead, alignment: .leading)
+
+            HStack(spacing: 6) {
+                Text(app.name)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(app.protected ? Color.secondary : Color.primary)
+                    .lineLimit(1)
+                Text(app.displayVersion).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                if app.protected { badge("系统自带", color: .secondary) }
+                if app.isMAS { badge("App Store", color: .blue) }
+                if app.rootOwned && !app.protected { badge("需要管理员", color: .orange) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(Format.size(app.bytes))
+                .font(.system(size: 11.5, design: .monospaced))
+                .foregroundStyle(app.protected ? Color.secondary : Color.primary)
+                .frame(width: Col.size, alignment: .trailing)
+            Text(Format.age(app.lastOpened))
+                .font(.system(size: 11.5, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: Col.opened, alignment: .trailing)
+            Text(app.openCount.map(String.init) ?? "—")
+                .font(.system(size: 11.5, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: Col.opens, alignment: .trailing)
+            Group {
+                if let count = state.residueCount[app.path] {
+                    Text(count > 0 ? "\(count)" : "—")
+                        .foregroundStyle(count > 0 ? Color.orange : Color.secondary)
+                } else {
+                    Text("·").foregroundStyle(.tertiary)
+                }
+            }
+            .font(.system(size: 11.5, design: .monospaced))
+            .frame(width: Col.residue, alignment: .trailing)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .background(rowBackground(app, checked: checked, hovered: isHovered))
+        .contentShape(Rectangle())
+        .onTapGesture { state.toggle(app) }
+        .onHover { inside in
+            if inside { state.hovered = app.path }
+            else if state.hovered == app.path { state.hovered = nil }
+        }
+        .help(help(app))
+    }
+
+    private func help(_ app: AppItem) -> String {
+        var lines = [app.bundleID]
+        if let last = app.lastOpened { lines.append("上次打开 \(Format.date(last))") }
+        if let count = app.openCount { lines.append("打开 \(count) 次") }
+        return lines.joined(separator: " · ")
+    }
+
+    /// 行的底色：选中的用强调色；系统自带的压一层几乎看不见的灰，跟能卸的分开。
+    private func rowBackground(_ app: AppItem, checked: Bool, hovered: Bool) -> Color {
+        if checked { return Color.accentColor.opacity(0.12) }
+        if hovered { return Color.primary.opacity(0.06) }
+        return app.protected ? Color.primary.opacity(0.035) : Color.clear
+    }
+
+    private func badge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 10))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(color.opacity(0.16)))
+            .foregroundStyle(color)
+    }
+
+    private var footer: some View {
+        HStack(spacing: 10) {
+            if !state.selection.isEmpty {
+                Text("已选 \(state.selectedApps.count) 个 · \(Format.size(state.selectedBytes))")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            Spacer()
+            Button("打开日志目录") { state.openLogFolder() }
+                .controlSize(.small)
+            Button("下一步") { state.buildPlan() }
+                .controlSize(.large)
+                .buttonStyle(.borderedProminent)
+                .disabled(state.selection.isEmpty || state.planBuilding)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+}
+
+// MARK: - 深度扫描 + 卸载清单
+
+struct ReviewSheet: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if state.planBuilding {
+                scanning
+            } else {
+                header
+                itemList
+                if !state.rejected.isEmpty { rejectedList }
+                footer
+            }
+        }
+        .padding(18)
+        .frame(width: 720, height: 620)
+    }
+
+    private var scanning: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text("正在深度扫描残留").font(.system(size: 14, weight: .semibold))
+            }
+            Text(state.progressLine)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+    }
+
+    private var header: some View {
+        Text("卸载 \(state.selectedApps.count) 个应用 · 移除 \(state.checkedPlan.count) 项 · \(Format.size(state.checkedBytes))")
+            .font(.system(size: 15, weight: .semibold))
+    }
+
+    private var itemList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(state.planByApp, id: \.0.path) { app, rows in
+                    HStack(spacing: 8) {
+                        Image(nsImage: NSWorkspace.shared.icon(forFile: app.icon))
+                            .resizable().frame(width: 18, height: 18)
+                        Text(app.name).font(.system(size: 12.5, weight: .semibold))
+                        Text("\(rows.filter { $0.checked }.count)/\(rows.count) 项 · \(Format.size(rows.filter { $0.checked }.reduce(0) { $0 + $1.bytes }))")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    ForEach(rows) { item in
+                        itemRow(item)
+                        Divider().opacity(0.25)
+                    }
+                }
+            }
+        }
+        .background(Color(nsColor: .textBackgroundColor))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
+    }
+
+    private func itemRow(_ item: PlanItem) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            Toggle("", isOn: Binding(get: { item.checked }, set: { _ in state.togglePlan(item) }))
+                .labelsHidden()
+                .toggleStyle(.checkbox)
+            Text(item.bytes > 0 ? Format.size(item.bytes) : "—")
+                .font(.system(size: 11, design: .monospaced))
+                .frame(width: 72, alignment: .trailing)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(item.label).font(.system(size: 11.5, weight: .medium)).lineLimit(1)
+                    if let kind = item.kind {
+                        badge(kind.label, color: .secondary).help(kind.explain)
+                    } else {
+                        badge("应用本体", color: .accentColor)
+                    }
+                    if item.needsAdmin { badge("需要管理员", color: .orange) }
+                }
+                Text(Format.short(item.path))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer(minLength: 4)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .help(item.why + (item.note.isEmpty ? "" : " \(item.note)"))
+    }
+
+    private var rejectedList: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("拦下 \(state.rejected.count) 项")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.orange)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(state.rejected.enumerated()), id: \.offset) { _, rejection in
+                        Text("\(rejection.reason) —— \(Format.short(rejection.path))")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(height: min(CGFloat(state.rejected.count) * 15 + 6, 80))
+        }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 10) {
+            if !state.skipped.isEmpty {
+                Text("另有 \(state.skipped.count) 项无法确认归属，已跳过")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .help(state.skipped.prefix(8).map { Format.short($0.path) + "（\($0.reason)）" }.joined(separator: "\n"))
+            }
+            Spacer()
+            Button("取消") { state.sheet = nil }
+            Button("卸载这 \(state.checkedPlan.count) 项") { state.runUninstall() }
+                .buttonStyle(.borderedProminent)
+                .disabled(state.checkedPlan.isEmpty)
+        }
+    }
+
+    /// 行的底色：选中的用强调色；系统自带的压一层几乎看不见的灰，跟能卸的分开。
+    private func rowBackground(_ app: AppItem, checked: Bool, hovered: Bool) -> Color {
+        if checked { return Color.accentColor.opacity(0.12) }
+        if hovered { return Color.primary.opacity(0.06) }
+        return app.protected ? Color.primary.opacity(0.035) : Color.clear
+    }
+
+    private func badge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 10))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(color.opacity(0.16)))
+            .foregroundStyle(color)
+    }
+}
+
+// MARK: - 执行中
+
+struct RunningSheet: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text("正在卸载…").font(.system(size: 14, weight: .semibold))
+            }
+            Text(state.progressLine).font(.system(size: 12)).foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(20)
+        .frame(width: 520, height: 160)
+    }
+}
+
+// MARK: - 结果
+
+struct ResultSheet: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        let outcome = state.outcome
+        VStack(alignment: .leading, spacing: 12) {
+            Text("已移除 \(outcome?.totalRemoved ?? 0) 项 · \(Format.size(outcome?.totalBytes ?? 0))")
+                .font(.system(size: 15, weight: .semibold))
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(outcome?.perApp ?? [], id: \.appName) { result in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("\(result.appName)：移除 \(result.removedCount) 项 · \(Format.size(result.removedBytes))")
+                                .font(.system(size: 12, weight: .medium))
+                            ForEach(result.notes, id: \.self) { note in
+                                Text(note).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                            }
+                            ForEach(result.failures, id: \.path) { failure in
+                                Text("没动：\(failure.reason)（\(Format.short(failure.path))）")
+                                    .font(.system(size: 10.5))
+                                    .foregroundStyle(.orange)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    if let skipped = outcome?.skippedCount, skipped > 0 {
+                        Text("另有 \(skipped) 项无法确认归属，未删（见日志）")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(height: 200)
+
+            HStack {
+                Button("打开废纸篓") { state.openTrash() }.controlSize(.small)
+                Button("打开日志") { state.openLogFolder() }.controlSize(.small)
+                Spacer()
+                Button("好") { state.sheet = nil }
+            }
+        }
+        .padding(18)
+        .frame(width: 620, height: 380)
+    }
+}
