@@ -24,6 +24,7 @@ enum SelfTest {
 
         print("FullCleaner 自检 · 样本目录 \(root)")
         checkScanners()
+        checkPermissions()
         checkSorting()
         checkScope()
         checkGates()
@@ -160,6 +161,18 @@ enum SelfTest {
         let receipts = hits.filter { $0.kind == .packageReceipt }
         check(receipts.count == 1 && receipts[0].path == "com.example.fake.pkg", "安装包收据只命中自己的那条")
         check(hits.allSatisfy { $0.kind == .packageReceipt || $0.path.hasPrefix(root) }, "所有命中路径都在样本目录里（没有扫到真系统）")
+    }
+
+    // MARK: - 权限
+
+    private static func checkPermissions() {
+        section("权限")
+        check(Permission.allCases.count == 2, "只列两项真正用到的权限（完全磁盘访问 / App 管理）")
+        check(Permissions.all().allSatisfy { !$0.permission.purpose.isEmpty }, "每项都写了用途")
+        check(Permissions.all().allSatisfy { $0.permission.settingsURL.hasPrefix("x-apple.systempreferences:") },
+              "每项都能一键打开系统设置里对应的那一页")
+        check(Permissions.status(.fullDiskAccess) == .missing, "样本环境读不到权限数据库 → 完全磁盘访问判为未授权")
+        check(Permissions.status(.appManagement) == .unknown, "完全磁盘访问没给时，App 管理标为「检测不了」而不是乱猜")
     }
 
     // MARK: - 排序

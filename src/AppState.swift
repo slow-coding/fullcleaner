@@ -31,9 +31,11 @@ final class AppState: ObservableObject {
     @Published var outcome: Outcome? = nil
     @Published var progressLine: String = ""
     @Published var lastScanFinished: Date? = nil
+    @Published var permissionRows: [PermissionRow] = []
     @Published var message: String = ""
 
     enum Sheet: Identifiable {
+        case permissions
         case review
         case running
         case result
@@ -51,6 +53,7 @@ final class AppState: ObservableObject {
     func start() {
         guard !started, !suppressAutoStart else { return }
         started = true
+        refreshPermissions()
         scan()
     }
 
@@ -131,6 +134,30 @@ final class AppState: ObservableObject {
     }
 
     func clearSelection() { selection = [] }
+
+    // MARK: - 权限
+
+    /// 打开权限面板时刷新一次状态。
+    func refreshPermissions() {
+        permissionRows = Permissions.all()
+    }
+
+    /// 一行点「去申请」：打开系统设置的对应页，然后在后台等系统放行，放行了自动打勾。
+    func requestPermission(_ permission: Permission) {
+        Permissions.openSettings(for: permission)
+        guard let index = permissionRows.firstIndex(where: { $0.permission == permission }) else { return }
+        permissionRows[index].checking = true
+        Task {
+            let granted = await Permissions.waitForGrant(permission)
+            await MainActor.run {
+                self.permissionRows = Permissions.all().map { row in
+                    var copy = row
+                    copy.checking = row.permission == permission && granted != .granted
+                    return copy
+                }
+            }
+        }
+    }
 
     /// 点表头：换列就用该列的默认方向，点同一列则翻转方向。
     func sort(by key: SortKey) {

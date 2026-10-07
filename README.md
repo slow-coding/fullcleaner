@@ -50,7 +50,8 @@ fullcleaner --list --json
 fullcleaner --plan "Docker"                 # print the removal plan for one app; read-only
 fullcleaner --plan com.docker.docker --json
 fullcleaner --uninstall "Docker" --yes      # execute (requires --yes)
-fullcleaner --selftest                      # run the 64-assertion self test in a temp sandbox
+fullcleaner --permissions                   # system permission status (two items only)
+fullcleaner --selftest                      # run the 72-assertion self test in a temp sandbox
 fullcleaner --help
 ```
 
@@ -59,6 +60,23 @@ fullcleaner --help
 Deletion goes to the Trash by default; root-owned items (App Store app bundles, files under `/Library`, package receipts) are batched into **one** administrator prompt and removed permanently — the review sheet says so before you confirm. Every run writes a JSONL log to `~/Library/Logs/fullcleaner/` including the Trash location of each item, and prunes itself to the last 20 runs.
 
 ![Removal plan](docs/screenshot-review.png)
+
+## Permissions
+
+FullCleaner asks for exactly two system permissions, each with its own button in the in-app **权限 / Permissions** panel (green check when granted, one-click request when not):
+
+| Permission | Why it is needed |
+| --- | --- |
+| **Full Disk Access** | Read inside other apps' containers — that is how a folder named after an app is verified to actually belong to it, and how leftover sizes are measured. Without it macOS prompts repeatedly or reads come back incomplete. |
+| **App Management** | Move another app's bundle to the Trash. Since macOS 13, modifying a bundle you do not own requires it. |
+
+It does **not** ask for Accessibility or Input Monitoring: it never simulates keystrokes and never reads what you type.
+
+```sh
+fullcleaner --permissions          # status of both, exit code 0 when both are granted
+```
+
+![Permissions panel](docs/screenshot-permissions.png)
 
 ## Install
 
@@ -91,10 +109,10 @@ Set `SIGN_IDENTITY="Developer ID Application: …"` to sign with a real certific
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Matching, gates, removal, logging | `fullcleaner --selftest` | **64 assertions**, run inside a temp sandbox (fake apps, fake leftovers, fake `/Library`); includes "every deleted path is inside the sandbox" and "paths with quotes and spaces are deleted correctly, nothing else is" |
+| Matching, gates, permissions, sorting, removal, logging | `fullcleaner --selftest` | **72 assertions**, run inside a temp sandbox (fake apps, fake leftovers, fake `/Library`); includes "every deleted path is inside the sandbox" and "paths with quotes and spaces are deleted correctly, nothing else is" |
 | No network | `./tools/offline-test.sh` | source scan, `otool -L` / `nm -u` / `strings` on the binary, and a live `lsof` sample during a real scan → 0 connections |
 | Release hygiene | `./tools/release-audit.sh` | 40 checks: personal info, secrets, license, repo hygiene, build, runtime safety, docs, publish prerequisites, full git history |
-| UI layout | `--render`, `--render-review`, `--render-result` | renders the interface to PNG offscreen, no screen-recording permission needed → `docs/screenshot-*.png` |
+| UI layout | `--render`, `--render-review`, `--render-permissions`, `--render-result` | renders the interface to PNG offscreen, no screen-recording permission needed → `docs/screenshot-*.png` |
 
 ## Limitations
 

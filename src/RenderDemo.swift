@@ -72,6 +72,17 @@ enum RenderDemo {
     }
 
     @MainActor
+    static func renderPermissions(to path: String) -> Bool {
+        let state = demoState()
+        state.permissionRows = [
+            PermissionRow(permission: .fullDiskAccess, status: .granted),
+            PermissionRow(permission: .appManagement, status: .missing, checking: true),
+        ]
+        state.sheet = .permissions
+        return render(AnyView(PermissionsSheet(state: state)), width: 580, height: 320, to: path)
+    }
+
+    @MainActor
     static func renderMain(to path: String) -> Bool {
         let state = demoState()
         return render(AnyView(ContentView(state: state)), width: 760, height: 640, to: path)

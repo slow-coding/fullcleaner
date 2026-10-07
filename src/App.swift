@@ -14,12 +14,22 @@ struct Main {
         let args = CommandLine.arguments
         if args.contains("--help") || args.contains("-h") { CLI.usage(); exit(0) }
         if args.contains("--selftest") { exit(SelfTest.run() ? 0 : 1) }
+        if args.contains("--permissions") { exit(CLI.permissions(json: args.contains("--json"))) }
         if args.contains("--list") { exit(CLI.list(json: args.contains("--json"))) }
         if let index = args.firstIndex(of: "--plan"), index + 1 < args.count {
             exit(CLI.plan(target: args[index + 1], json: args.contains("--json")))
         }
         if let index = args.firstIndex(of: "--uninstall"), index + 1 < args.count {
             exit(CLI.uninstall(target: args[index + 1], confirmed: args.contains("--yes")))
+        }
+        if let index = args.firstIndex(of: "--render-permissions"), index + 1 < args.count {
+            _ = NSApplication.shared
+            var ok = false
+            if #available(macOS 14.0, *) {
+                ok = MainActor.assumeIsolated { RenderDemo.renderPermissions(to: args[index + 1]) }
+            }
+            print(ok ? "权限面板已渲染到 \(args[index + 1])" : "渲染失败")
+            exit(ok ? 0 : 1)
         }
         if let index = args.firstIndex(of: "--render"), index + 1 < args.count {
             _ = NSApplication.shared
@@ -92,6 +102,25 @@ enum CLI {
         if matches.count == 1 { return matches[0] }
         let partial = apps.filter { $0.name.lowercased().contains(target.lowercased()) }
         return partial.count == 1 ? partial[0] : nil
+    }
+
+    /// 权限现状：给用户看，也可以给脚本用。
+    static func permissions(json: Bool) -> Int32 {
+        let rows = Permissions.all()
+        if json {
+            let payload = rows.map { ["permission": $0.permission.rawValue, "title": $0.permission.title,
+                                      "status": "\($0.status)", "settings": $0.permission.settingsURL] }
+            if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]),
+               let text = String(data: data, encoding: .utf8) { print(text) }
+            return rows.allSatisfy { $0.status == .granted } ? 0 : 1
+        }
+        print("权限（这个工具只用这两项）")
+        for row in rows {
+            let mark = row.status == .granted ? "✓" : (row.status == .missing ? "✗" : "?")
+            print("  \(mark) \(row.permission.title)  \(row.status.label)")
+            if row.status != .granted { print("      \(row.permission.settingsHint)") }
+        }
+        return rows.allSatisfy { $0.status == .granted } ? 0 : 1
     }
 
     static func list(json: Bool) -> Int32 {

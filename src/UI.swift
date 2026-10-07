@@ -30,6 +30,7 @@ struct ContentView: View {
         .frame(minWidth: 640, minHeight: 520)
         .sheet(item: $state.sheet) { sheet in
             switch sheet {
+            case .permissions: PermissionsSheet(state: state)
             case .review: ReviewSheet(state: state)
             case .running: RunningSheet(state: state)
             case .result: ResultSheet(state: state)
@@ -50,6 +51,19 @@ struct ContentView: View {
                     .lineLimit(1)
             }
             Spacer()
+            Button {
+                state.refreshPermissions()
+                state.sheet = .permissions
+            } label: {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(state.permissionRows.allSatisfy { $0.status == .granted } ? Color.green : Color.orange)
+                        .frame(width: 7, height: 7)
+                    Text("权限")
+                }
+            }
+            .controlSize(.small)
+            .help(permissionHelp)
             Button("重新扫描") { state.scan() }
                 .controlSize(.small)
                 .disabled(state.scanning)
@@ -223,6 +237,11 @@ struct ContentView: View {
         return app.protected ? Color.primary.opacity(0.035) : Color.clear
     }
 
+    private var permissionHelp: String {
+        let missing = state.permissionRows.filter { $0.status != .granted }.map { $0.permission.title }
+        return missing.isEmpty ? "权限都齐了" : "还差：\(missing.joined(separator: "、"))（点开逐项申请）"
+    }
+
     private func badge(_ text: String, color: Color) -> some View {
         Text(text)
             .font(.system(size: 10))
@@ -248,6 +267,89 @@ struct ContentView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+}
+
+// MARK: - 权限
+
+struct PermissionsSheet: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("权限").font(.system(size: 15, weight: .semibold))
+            Text("只有下面这些是这个工具真正用到的。辅助功能、输入监控这类它不需要，所以不申请。")
+                .font(.system(size: 11.5))
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 0) {
+                ForEach(state.permissionRows) { row in
+                    rowView(row)
+                    if row.id != state.permissionRows.last?.id { Divider().opacity(0.3) }
+                }
+            }
+            .background(Color(nsColor: .textBackgroundColor))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
+
+            HStack(spacing: 10) {
+                Spacer()
+                Button("重新检查") { state.refreshPermissions() }
+                Button("好") { state.sheet = nil }
+            }
+        }
+        .padding(18)
+        .frame(width: 580)
+    }
+
+    private func rowView(_ row: PermissionRow) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            statusIcon(row)
+                .frame(width: 16, height: 16)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Text(row.permission.title).font(.system(size: 12.5, weight: .medium))
+                    Text(row.status.label)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(row.status == .granted ? Color.green : Color.orange)
+                    if row.checking {
+                        HStack(spacing: 5) {
+                            ProgressView().controlSize(.mini)
+                            Text("在等系统放行…").font(.system(size: 10.5)).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                Text(row.permission.purpose)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if row.status != .granted {
+                    Text(row.permission.settingsHint)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 8)
+            if row.status != .granted {
+                Button("去申请") { state.requestPermission(row.permission) }
+                    .controlSize(.small)
+                    .disabled(row.checking)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+
+    @ViewBuilder
+    private func statusIcon(_ row: PermissionRow) -> some View {
+        switch row.status {
+        case .granted:
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+        case .missing:
+            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
+        case .unknown:
+            Image(systemName: "questionmark.circle").foregroundStyle(.secondary)
+        }
     }
 }
 
@@ -388,6 +490,11 @@ struct ReviewSheet: View {
         if checked { return Color.accentColor.opacity(0.12) }
         if hovered { return Color.primary.opacity(0.06) }
         return app.protected ? Color.primary.opacity(0.035) : Color.clear
+    }
+
+    private var permissionHelp: String {
+        let missing = state.permissionRows.filter { $0.status != .granted }.map { $0.permission.title }
+        return missing.isEmpty ? "权限都齐了" : "还差：\(missing.joined(separator: "、"))（点开逐项申请）"
     }
 
     private func badge(_ text: String, color: Color) -> some View {
