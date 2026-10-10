@@ -81,8 +81,19 @@ if [ -n "${SIGN_IDENTITY:-}" ]; then
   codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP"
   echo "  Developer ID 签名：$SIGN_IDENTITY（强化运行时 + 时间戳）"
 else
-  codesign --force --options runtime --sign - "$APP" 2>/dev/null
-  echo "  ad-hoc 签名（本机自用；要分发给别人就跑 ./tools/release.sh）"
+  # 本机自签身份（keychain 里名字带 FullCleaner 的代码签名证书）：TCC 授权按这个身份记账，
+  # 重建 / 覆盖安装之后授权不会失效；没有就用 ad-hoc —— 那个每次构建 cdhash 都变，
+  # 覆盖安装后系统设置里那条授权就对不上了（tccd 日志：Failed to match existing code requirement）。
+  LOCAL_SIGNER=$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/FullCleaner/ {print $2; exit}')
+  if [ -n "$LOCAL_SIGNER" ]; then
+    codesign --force --options runtime --sign "$LOCAL_SIGNER" "$APP"
+    echo "  本地自签身份：$LOCAL_SIGNER（重建后 TCC 授权仍然有效）"
+  else
+    codesign --force --options runtime --sign - "$APP" 2>/dev/null
+    echo "  ad-hoc 签名（本机自用；要分发给别人就跑 ./tools/release.sh）"
+    echo "  ⚠ ad-hoc 授权按每次构建的 cdhash 记账：覆盖安装后要在系统设置里重新授权；"
+    echo "     建一个名字带 FullCleaner 的代码签名证书（钥匙串访问 → 证书助理 → 创建证书），build.sh 会自动用它。"
+  fi
 fi
 
 echo "== 5/6 自检（临时样本目录里跑完整的判据与删除流程）=="

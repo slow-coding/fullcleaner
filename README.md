@@ -91,6 +91,8 @@ Each row carries one button, **Open System Settings**, which jumps straight to t
 
 It does **not** ask for Accessibility or Input Monitoring: it never simulates keystrokes and never reads what you type. Administrator actions (system-level leftovers, package receipts) are collected into a single batch, so a run costs one password prompt — not one per app.
 
+**After an update the switch can stop counting.** Builds here are ad-hoc signed, and macOS records a permission against one exact build, so replacing the app invalidates the old grant: System Settings still shows the toggle on while the app sees nothing (`tccd` logs `Failed to match existing code requirement`). Fix it by removing FullCleaner from the list (**−**), adding it back from Applications, then reopening the app. To stop it from coming back, create a code-signing certificate in your keychain (Keychain Access → Certificate Assistant → Create a Certificate…, name it e.g. `FullCleaner Dev`): `build.sh` picks it up automatically, and every rebuild then shares one identity. The app says the same thing in its panel when it sees an enabled-but-unmatched grant.
+
 Without Full Disk Access the tool still works, it just knows less: iCloud Drive is not scanned, container sizes show as `—`, and container contents are left alone (that is where macOS would otherwise prompt).
 
 ```sh

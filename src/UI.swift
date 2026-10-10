@@ -330,9 +330,11 @@ struct PermissionsSheet: View {
                         .controlSize(.small)
                 }
             } else if state.permissionRows.contains(where: { $0.status != .granted }) {
-                /* 完全磁盘访问 / App 管理这两个列表里，没拖进去过的 app 是不出现开关的 ——
-                   用户 2026-10-10：「可以拖拽到左侧窗口，引导拖拽不然没有开关」。 */
-                Text(t("If the list has no FullCleaner entry, drag it in from Applications (or click +), then flip the switch."))
+                /* 这条覆盖的是用户 2026-10-10 遇到的那个：系统设置里开关是开的，这里还是红。
+                   ad-hoc 签名的授权按「那一份构建」的 cdhash 记账，覆盖安装之后旧记录就再也对不上
+                   （tccd 日志原文：Failed to match existing code requirement for subject local.fullcleaner）。
+                   列表里根本没它的情况写进行悬停。 */
+                Text(t("Switch already on and still red? macOS records the grant against one exact build — remove FullCleaner from that list (−), add it back from Applications, then reopen this app."))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -387,8 +389,9 @@ struct PermissionsSheet: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        /* 完整说明（为什么需要 / 覆盖什么 / 系统设置里怎么走）全进悬停：界面那一行只留一句话。 */
-        .help(row.permission.help + "\n" + row.permission.settingsHint)
+        /* 完整说明（为什么需要 / 覆盖什么 / 系统设置里怎么走 / 列表里没它怎么办）全进悬停。 */
+        .help(row.permission.help + "\n" + row.permission.settingsHint + "\n"
+              + t("No FullCleaner row in that list? Drag it in from Applications, or click +."))
     }
 
     @ViewBuilder
