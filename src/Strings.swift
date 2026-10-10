@@ -90,6 +90,7 @@ enum Str {
         "If the list has no FullCleaner entry, drag it in from Applications (or click +), then flip the switch.": "列表里没有 FullCleaner？把它从「应用程序」拖进列表（或点 +），再打开开关。",
         "Administrator actions: %d items (one prompt for the whole run)": "需要管理员权限：%d 项（整轮只弹一次密码框）",
         "Unregistered from Launch Services": "已从 Launch Services 注销（打开方式 / 默认应用那条记录）",
+        "Missing permissions (%@): containers and iCloud Drive stay behind. Grant them first for a clean uninstall.": "缺权限（%@）：容器里的东西与 iCloud Drive 会留下。要卸干净先把开关打开。",
         "Re-scan: nothing else belonging to it is left on disk.": "复扫：除了上面这些，盘上已经没有它了。",
         "Re-scan: %d more items are still on disk (not in this run's list).": "复扫：还有 %d 处留在盘上（不在这次清单里）。",
         "Full Disk Access": "完全磁盘访问",

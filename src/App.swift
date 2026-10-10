@@ -228,6 +228,12 @@ enum CLI {
             print(t("Add --yes to actually delete. Run --plan %@ first to see the list.", target))
             return 64
         }
+        /* 权限没给全时别装作卸干净了：容器里的东西、iCloud Drive 都不在清单里，
+           这里先说一声 —— 界面那边是直接拦下不让卸（用户 2026-10-10：「卸不干净就等权限到了再说」）。 */
+        if !Permissions.allGranted, !Sandbox.isSelfTest {
+            let missing = Permissions.missingTitles.joined(separator: ", ")
+            print(t("Missing permissions (%@): containers and iCloud Drive stay behind. Grant them first for a clean uninstall.", missing))
+        }
         let apps = AppScanner.scan()
         guard let app = locate(target, apps: apps) else {
             print(t("Not found: “%@”. Try --list to see what is installed.", target))
