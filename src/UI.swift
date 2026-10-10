@@ -65,8 +65,14 @@ struct ContentView: View {
             .controlSize(.small)
             .help(permissionHelp)
             Menu {
+                /* 默认跟随系统语言（用户 2026-10-10）：选过才记住，菜单第一项能回到跟随。
+                   「✓ 」直接写进标题 —— 菜单里用 Picker/Toggle 排一个三选一（跟随 / 英 / 中）反而绕。 */
+                Button(state.followsSystem ? "✓ " + t("Follow system") : t("Follow system")) {
+                    state.followSystemLanguage()
+                }
+                Divider()
                 ForEach(Lang.allCases) { lang in
-                    Button(lang.label) { state.use(lang) }
+                    Button(!state.followsSystem && state.lang == lang ? "✓ \(lang.label)" : lang.label) { state.use(lang) }
                 }
             } label: {
                 Image(systemName: "globe")

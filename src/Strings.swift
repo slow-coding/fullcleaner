@@ -5,7 +5,9 @@
 // 用法：
 //   Text(t("Permissions"))                    // 普通字串
 //   Text(t("%d apps installed", count))       // 带参数（%@ / %d，见 String(format:)）
-// 语言解析顺序：用户选的 → 系统语言（中文则中文）→ 英文。
+// 语言解析顺序：用户选的（菜单 / --lang）→ 系统语言（中文则中文）→ 英文。
+// 只有用户明确选过才写盘；跟随系统时不写 —— 那样系统语言改了，下次打开就跟过去
+// （用户 2026-10-10：「默认跟随系统语言」）。
 
 import Foundation
 
@@ -22,6 +24,17 @@ enum Lang: String, CaseIterable, Identifiable {
         case .zh: return "简体中文"
         }
     }
+
+    /// 语言代码 → 界面语言：中文（简 / 繁 / 带地区）走中文表，其余（含空值）走英文。
+    /// 纯函数：自检直接喂代码验，不动本机设置。
+    static func matching(_ languageCode: String) -> Lang {
+        languageCode.lowercased().hasPrefix("zh") ? .zh : .en
+    }
+
+    /// 本机系统首选语言 → 界面语言（与「语言与地区」里排第一的那条一致）。
+    static var systemDefault: Lang {
+        matching(Locale.preferredLanguages.first ?? "en")
+    }
 }
 
 /// 全项目直接用：t("English text") / t("%d items", count)
@@ -29,21 +42,41 @@ func t(_ key: String) -> String { Str.t(key) }
 func t(_ key: String, _ args: CVarArg...) -> String { Str.t(key, args) }
 
 enum Str {
-    /// 当前语言。默认英文；"followSystem" 时按系统语言判断。
-    static var current: Lang = .en {
-        didSet { UserDefaults.standard.set(current.rawValue, forKey: "lang") }
-    }
+    private static var stored: Lang = .en
 
-    /// 初始化：读用户选择；没选过就默认英文（README 与截图都以英文为准）。
-    static func bootstrap() {
-        if let saved = UserDefaults.standard.string(forKey: "lang"), let lang = Lang(rawValue: saved) {
-            current = lang
-        } else {
-            current = .en
+    /// 当前语言。赋值即写盘（表示用户明确选过）。
+    static var current: Lang {
+        get { stored }
+        set {
+            stored = newValue
+            UserDefaults.standard.set(newValue.rawValue, forKey: "lang")
         }
     }
 
+    /// 启动时定语言：用户选过就用他选的；没选过跟随系统语言（这条不写盘）。
+    /// 必须在任何 t() 之前调用 —— App 的 main 第一件事。
+    static func bootstrap() {
+        if let saved = UserDefaults.standard.string(forKey: "lang"), let lang = Lang(rawValue: saved) {
+            stored = lang
+        } else {
+            stored = .systemDefault
+        }
+    }
+
+    /// 用户明确选一种（菜单 / --lang）：记住。
     static func use(_ lang: Lang) { current = lang }
+
+    /// 只影响这一次运行，不写盘（出图用：README 的截图固定英文）。
+    static func useThisRun(_ lang: Lang) { stored = lang }
+
+    /// 回到「跟随系统」：清掉选择，立刻按系统语言切。
+    static func followSystem() {
+        UserDefaults.standard.removeObject(forKey: "lang")
+        stored = .systemDefault
+    }
+
+    /// 现在是不是跟随系统（菜单上标状态用）。
+    static var followsSystem: Bool { UserDefaults.standard.string(forKey: "lang") == nil }
 
     /// 取一个字串：英文基准，中文时查表；查不到就返回英文原文。
     static func t(_ key: String) -> String {

@@ -10,7 +10,9 @@ final class AppState: ObservableObject {
     @Published var query: String = "" { didSet { refreshVisibleRows() } }
     @Published var selection: Set<String> = []          // 勾中的应用 path
     @Published var showSystem: Bool = false { didSet { refreshVisibleRows() } }
-    @Published var lang: Lang = .en
+    @Published var lang: Lang = Str.current
+    /// 现在是不是跟随系统语言（菜单里那颗「跟随系统」标状态用）。
+    @Published var followsSystem = Str.followsSystem
     @Published var hovered: String?
     @Published private(set) var icons: [String: NSImage] = [:]
     /// 卸载前把图标存一份给结果页用：应用删掉之后就从 apps 里没了，再取就只剩通用图标
@@ -179,6 +181,15 @@ final class AppState: ObservableObject {
     func use(_ lang: Lang) {
         self.lang = lang
         Str.use(lang)
+        followsSystem = false
+        objectWillChange.send()
+    }
+
+    /// 回到「跟随系统」：清掉已选的语言，立刻按系统语言切。
+    func followSystemLanguage() {
+        Str.followSystem()
+        lang = Str.current
+        followsSystem = true
         objectWillChange.send()
     }
 

@@ -67,7 +67,7 @@ When it finishes, the result sheet is a single green check with what was removed
 
 ## Languages
 
-The interface ships in **English (default)** and **简体中文**. Switch it from the globe menu in the toolbar, or set it for the CLI:
+The interface follows the **system language** by default (a Chinese system gets 简体中文, anything else gets English). Pin a language from the globe menu in the toolbar — including **Follow system** to go back — or set it for a single CLI run:
 
 ```sh
 fullcleaner --lang zh --list
@@ -130,7 +130,7 @@ Set `SIGN_IDENTITY="Developer ID Application: …"` to sign with a real certific
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Matching, gates, permissions, sorting, removal, logging | `fullcleaner --selftest` | **82 assertions**, run inside a temp sandbox (fake apps, fake leftovers, fake `/Library`); includes "every deleted path is inside the sandbox" and "paths with quotes and spaces are deleted correctly, nothing else is" |
+| Matching, gates, permissions, sorting, removal, logging | `fullcleaner --selftest` | **84 assertions**, run inside a temp sandbox (fake apps, fake leftovers, fake `/Library`); includes "every deleted path is inside the sandbox" and "paths with quotes and spaces are deleted correctly, nothing else is" |
 | No network | `./tools/offline-test.sh` | source scan, `otool -L` / `nm -u` / `strings` on the binary, and a live `lsof` sample during a real scan → 0 connections |
 | Release hygiene | `./tools/release-audit.sh` | 40 checks: personal info, secrets, license, repo hygiene, build, runtime safety, docs, publish prerequisites, full git history |
 | UI layout | `--render`, `--render-review`, `--render-permissions`, `--render-result` | renders the interface to PNG offscreen, no screen-recording permission needed → `docs/screenshot-*.png` |

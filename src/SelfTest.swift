@@ -18,6 +18,10 @@ enum SelfTest {
     private static func section(_ title: String) { print("\n\(title)") }
 
     static func run() -> Bool {
+        /* 自检固定英文：断言比的是 gate / reason 的英文字串（源码里那些串走 t()，随界面语言变），
+           结果不能因为系统语言不同而变（用户 2026-10-10：「默认跟随系统语言」直接暴露了这一点）。
+           只影响这一次运行，不写偏好。 */
+        Str.useThisRun(.en)
         root = NSTemporaryDirectory() + "fullcleaner-selftest-\(UUID().uuidString.prefix(6))"
         buildSample()
         setEnvironment()
@@ -25,6 +29,7 @@ enum SelfTest {
         print("FullCleaner 自检 · 样本目录 \(root)")
         checkScanners()
         checkPermissions()
+        checkLanguage()
         checkSorting()
         checkScope()
         checkGates()
@@ -179,6 +184,16 @@ enum SelfTest {
         check(Permissions.status(.appManagement) == .unknown && Permission.appManagement.unknownHint != nil,
               "完全磁盘访问没给时，App 管理标为「检测不了」并写清为什么")
         check(Permissions.relaunch() == false, "自检里不真重启")
+    }
+
+    // MARK: - 界面语言
+
+    private static func checkLanguage() {
+        section("界面语言")
+        check(Lang.matching("zh-Hans") == .zh && Lang.matching("zh-Hant-TW") == .zh,
+              "中文（简 / 繁 / 带地区）都走中文界面")
+        check(Lang.matching("en-US") == .en && Lang.matching("ja-JP") == .en && Lang.matching("") == .en,
+              "非中文（含空值）走英文界面")
     }
 
     // MARK: - 排序

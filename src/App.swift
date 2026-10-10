@@ -12,10 +12,15 @@ import AppKit
 struct Main {
     static func main() {
         let args = CommandLine.arguments
+        /* 语言要在任何 t() 之前定下来：用户明确选过就用他选的，没选过跟随系统语言
+           （用户 2026-10-10：「默认跟随系统语言」）。 */
+        Str.bootstrap()
         if args.contains("--help") || args.contains("-h") { CLI.usage(); exit(0) }
         if args.contains("--selftest") { exit(SelfTest.run() ? 0 : 1) }
         if let index = args.firstIndex(of: "--lang"), index + 1 < args.count,
-           let lang = Lang(rawValue: args[index + 1]) { Str.use(lang) }
+           let lang = Lang(rawValue: args[index + 1]) { Str.useThisRun(lang) }
+        /* 出图固定英文：README 与截图都以英文为准（--lang 也盖不过它）。 */
+        if args.contains(where: { $0.hasPrefix("--render") }) { Str.useThisRun(.en) }
         if args.contains("--permissions") { exit(CLI.permissions(json: args.contains("--json"))) }
         if args.contains("--list") { exit(CLI.list(json: args.contains("--json"))) }
         if let index = args.firstIndex(of: "--plan"), index + 1 < args.count {
@@ -88,7 +93,7 @@ enum CLI {
           fullcleaner --plan <name|bundle id> [--json]   print the removal plan for one app (read-only)
           fullcleaner --uninstall <name|bundle id> --yes execute the plan (Trash by default)
           fullcleaner --permissions [--json]             system permission status (two items)
-          fullcleaner --lang <en|zh>                     switch interface language
+          fullcleaner --lang <en|zh>                     interface language for this run (the app follows the system by default)
           fullcleaner --selftest                         run the self test in a temp sandbox
           fullcleaner --render <out.png>                 render the interface to a PNG
           fullcleaner --render-review <out.png>          render the removal plan
