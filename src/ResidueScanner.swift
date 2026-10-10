@@ -52,8 +52,10 @@ enum ResidueScanner {
 
         // 系统级（需要管理员）
         add(Paths.system("/Library/Application Support"), .systemLibrary, true)
+        add(Paths.system("/Library/Application Support/CrashReporter"), .crashReporter, true, prefixName: true)
         add(Paths.system("/Library/Caches"), .systemLibrary, true)
         add(Paths.system("/Library/Logs"), .systemLibrary, true)
+        add(Paths.system("/Library/Logs/DiagnosticReports"), .logs, true, prefixName: true, label: t("Crash logs"))
         add(Paths.system("/Library/Preferences"), .systemLibrary, true, stripSuffix: true)
         add(Paths.system("/Library/LaunchAgents"), .launchAgent, false, stripSuffix: true)
         add(Paths.system("/Library/LaunchDaemons"), .launchAgent, false, stripSuffix: true)

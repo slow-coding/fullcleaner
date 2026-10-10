@@ -38,6 +38,10 @@ final class AppState: ObservableObject {
     @Published var resultPulse = false      // 结果页那个对号的入场动画（SwiftUI 的 @State 在命令行编译下用不了）
     @Published var lastScanFinished: Date? = nil
     @Published var permissionRows: [PermissionRow] = []
+    /// 拨了开关但还探不到（TCC 按进程缓存）：面板底部出「重启 FullCleaner」。
+    @Published var permissionNeedsRelaunch = false
+    /// 点卸载时权限没给全：不当半吊子卸，先把人送回权限面板（见 runUninstall）。
+    @Published var uninstallBlocked = false
     @Published var message: String = ""
 
     enum Sheet: Identifiable {
@@ -185,21 +189,37 @@ final class AppState: ObservableObject {
         permissionRows = Permissions.all()
     }
 
-    /// 一行点「去申请」：打开系统设置的对应页，然后在后台等系统放行，放行了自动打勾。
-    func requestPermission(_ permission: Permission) {
+    /// 一行点「打开系统设置」：跳过去，后台等系统放行（最多 20 秒），放行自动打勾。
+    /// 等不到就说清下一步：macOS 常常要重启应用后权限才生效（旧版只挂个转圈，用户不知道怎么办）。
+    func openPermissionSettings(_ permission: Permission) {
         Permissions.openSettings(for: permission)
+        permissionNeedsRelaunch = false
         guard let index = permissionRows.firstIndex(where: { $0.permission == permission }) else { return }
         permissionRows[index].checking = true
         Task {
             let granted = await Permissions.waitForGrant(permission)
             await MainActor.run {
-                self.permissionRows = Permissions.all().map { row in
-                    var copy = row
-                    copy.checking = row.permission == permission && granted != .granted
-                    return copy
+                self.refreshPermissions()
+                if let index = self.permissionRows.firstIndex(where: { $0.permission == permission }) {
+                    self.permissionRows[index].checking = false
                 }
+                self.permissionNeedsRelaunch = granted != .granted && Permissions.canRelaunch
             }
         }
+    }
+
+    /// 「重新检查」：重探一次；都齐了就把重启提醒与卸载拦截都收掉。
+    func checkPermissionsAgain() {
+        refreshPermissions()
+        if Permissions.allGranted {
+            permissionNeedsRelaunch = false
+            uninstallBlocked = false
+        }
+    }
+
+    /// 「重启 FullCleaner」：能重启就重启（只有 .app 形态行），否则什么都不做。
+    func restartApp() {
+        Permissions.relaunch()
     }
 
     /// 点表头：换列就用该列的默认方向，点同一列则翻转方向。
@@ -267,6 +287,14 @@ final class AppState: ObservableObject {
     }
 
     func runUninstall() {
+        /* 权限没给全就不动刀：半吊子卸载（本体删了、容器留着）比不卸更烦。
+           用户 2026-10-10：「卸不干净就等权限到了再说，而不是半吊子卸载」。 */
+        guard Permissions.allGranted else {
+            refreshPermissions()
+            uninstallBlocked = true
+            sheet = .permissions
+            return
+        }
         let items = checkedPlan
         let chosen = selectedApps
         resultIcons = Dictionary(uniqueKeysWithValues: chosen.compactMap { app in

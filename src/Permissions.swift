@@ -1,13 +1,15 @@
-// 权限：这个工具真正需要的系统权限，以及每项的当前状态。
-// 只需要两项——完全磁盘访问（读别的应用的容器内容）与 App 管理（改动别的应用本体）。
-// 辅助功能、输入监控这类不申请：本工具不模拟按键、不读键盘，列出来只会误导。
+// 权限：这个工具真正需要的那**两项**，以及每项的当前状态与获取路径。
+// 为什么只剩两项（2026-10-10 整理：用户「权限获取感觉乱七八糟的」）：
+//   · 「文件与文件夹」（音乐 / 影片 / 图片 / 文稿 / iCloud Drive）不是独立的一项 —— 它的探针与状态
+//     完全等同于完全磁盘访问，单列一行等于同一件事说两遍。那一行的信息并进这一项的悬停说明。
+//   · 辅助功能、输入监控不申请：本工具不模拟按键、不读键盘，列出来只会误导。
+// 界面只放 purpose 那一句；help 进悬停（用户 2026-10-07 的老毛病：界面里不要堆解释文字）。
 
 import Foundation
 import AppKit
 
 enum Permission: String, CaseIterable, Identifiable {
     case fullDiskAccess
-    case filesAndFolders
     case appManagement
 
     var id: String { rawValue }
@@ -15,34 +17,48 @@ enum Permission: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .fullDiskAccess: return t("Full Disk Access")
-        case .filesAndFolders: return t("Files and Folders (Music / Movies / Pictures / Documents / iCloud Drive)")
         case .appManagement: return t("App Management")
         }
     }
 
+    /// 面板上那一行的一句话（界面只放这一句）。
     var purpose: String {
         switch self {
         case .fullDiskAccess:
+            return t("Read inside other apps' containers to match leftovers to an app and measure their sizes.")
+        case .appManagement:
+            return t("Move another app's bundle to the Trash (macOS 13 and later require it).")
+        }
+    }
+
+    /// 悬停里的完整说明：为什么需要、覆盖什么、要不要单独授权。
+    var help: String {
+        switch self {
+        case .fullDiskAccess:
             return t("Read inside other apps' containers — that is how a folder named after an app is verified to belong to it, and how leftover sizes are measured. Without it macOS asks repeatedly, or reads come back incomplete.")
-        case .filesAndFolders:
-            return t("Those locations make macOS prompt once. Full Disk Access covers them all; without it this app skips them entirely instead of interrupting you.")
+                + "\n" + t("This one switch also covers Music / Movies / Pictures / Documents / iCloud Drive; without it those places are skipped entirely instead of prompting.")
         case .appManagement:
             return t("Move another app's bundle to the Trash. Since macOS 13, modifying a bundle you do not own requires it.")
         }
     }
 
+    /// 状态读不出来时行内要写清为什么（只有 App 管理会走到这里）。
+    var unknownHint: String? {
+        self == .appManagement ? t("Needs Full Disk Access first — without it this row cannot be read.") : nil
+    }
+
     /// 系统设置里对应的面板。
     var settingsURL: String {
         switch self {
-        case .fullDiskAccess, .filesAndFolders: return "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
+        case .fullDiskAccess: return "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
         case .appManagement: return "x-apple.systempreferences:com.apple.preference.security?Privacy_AppBundles"
         }
     }
 
     var settingsHint: String {
         switch self {
-        case .fullDiskAccess, .filesAndFolders:
-            return t("System Settings → Privacy & Security → Full Disk Access → switch FullCleaner on (this one covers all of the above)")
+        case .fullDiskAccess:
+            return t("System Settings → Privacy & Security → Full Disk Access → switch FullCleaner on")
         case .appManagement: return t("System Settings → Privacy & Security → App Management → switch FullCleaner on")
         }
     }
@@ -77,10 +93,8 @@ enum Permissions {
         switch permission {
         case .fullDiskAccess:
             return canReadTCCDatabase() ? .granted : .missing
-        case .filesAndFolders:
-            return canReadTCCDatabase() ? .granted : .missing   // 完全磁盘访问覆盖它
         case .appManagement:
-            // 权限数据库本身受完全磁盘访问保护；读不到就只能说不确定。
+            // 权限数据库本身受完全磁盘访问保护；读不到就只能说不确定（行内会写清为什么）。
             guard canReadTCCDatabase() else { return .unknown }
             switch authValue(service: "kTCCServiceAppManagement") {
             case 2: return .granted
@@ -115,13 +129,37 @@ enum Permissions {
     }
 
     /// 打开设置后，系统的权限判定有几秒延迟；这段时间内重复探测。
-    static func waitForGrant(_ permission: Permission, seconds: TimeInterval = 60) async -> PermissionStatus {
+    /// 为什么只等 20 秒（原来是 60）：拨开关 + 回来通常十来秒就够；等太久面板一直挂着转圈，
+    /// 反而让人以为卡住了。等不到由界面给「重启 FullCleaner」的下一步（TCC 按进程缓存）。
+    static func waitForGrant(_ permission: Permission, seconds: TimeInterval = 20) async -> PermissionStatus {
         let deadline = Date().addingTimeInterval(seconds)
         while Date() < deadline {
             if status(permission) == .granted { return .granted }
             try? await Task.sleep(nanoseconds: 1_500_000_000)
         }
         return status(permission)
+    }
+
+    // MARK: - 重启（权限生效的下一步）
+
+    /// 能不能重启自己：只有 .app 形态（有 bundle）行；命令行直接跑二进制、自检里都不行。
+    static var canRelaunch: Bool {
+        !Sandbox.isSelfTest
+            && Bundle.main.bundleURL.pathExtension == "app"
+            && FileManager.default.isExecutableFile(atPath: Bundle.main.executableURL?.path ?? "")
+    }
+
+    /// 重启自己：macOS 的权限判定按进程缓存，开关拨上后常常要重启应用才生效 ——
+    /// 面板上那颗「重启 FullCleaner」就走这里（`open -n` 拉起新实例，旧的自己退）。
+    @discardableResult
+    static func relaunch() -> Bool {
+        guard canRelaunch else { return false }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-n", Bundle.main.bundleURL.path]
+        guard (try? process.run()) != nil else { return false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { NSApp.terminate(nil) }
+        return true
     }
 
     // MARK: - 探测细节

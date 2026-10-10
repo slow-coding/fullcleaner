@@ -288,9 +288,12 @@ struct PermissionsSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(t("Permissions")).font(.system(size: 15, weight: .semibold))
-            Text(t("Only these are actually used. Accessibility and Input Monitoring are not needed and are never requested."))
+            /* 这一行以前是单行 Text，宽度不够就被省略号截掉半句（截图里 "…are never req…"）：让它换行。
+               顺带把「什么是必要的」写清楚：两项都是必要项，缺哪一项都会留残留。 */
+            Text(t("Both are required for a clean uninstall — miss one and leftovers stay behind. Accessibility and Input Monitoring are never requested."))
                 .font(.system(size: 11.5))
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: 0) {
                 ForEach(state.permissionRows) { row in
@@ -301,9 +304,37 @@ struct PermissionsSheet: View {
             .background(Color(nsColor: .textBackgroundColor))
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
 
+            if state.uninstallBlocked {
+                /* 点卸载但权限没给全：先把话说清楚，人去把开关打开再卸（不半吊子卸载）。 */
+                Text(t("Uninstall is on hold: turn both switches on first, otherwise leftovers stay behind."))
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(Color.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if state.permissionNeedsRelaunch {
+                /* 拨了开关但探不到（TCC 按进程缓存）：给下一步，不只挂一个转圈。 */
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(t("Still not showing? macOS usually applies a permission change only after the app is relaunched."))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    Button(t("Restart FullCleaner")) { state.restartApp() }
+                        .controlSize(.small)
+                }
+            } else if state.permissionRows.contains(where: { $0.status != .granted }) {
+                /* 完全磁盘访问 / App 管理这两个列表里，没拖进去过的 app 是不出现开关的 ——
+                   用户 2026-10-10：「可以拖拽到左侧窗口，引导拖拽不然没有开关」。 */
+                Text(t("If the list has no FullCleaner entry, drag it in from Applications (or click +), then flip the switch."))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             HStack(spacing: 10) {
                 Spacer()
-                Button(t("Check again")) { state.refreshPermissions() }
+                Button(t("Check again")) { state.checkPermissionsAgain() }
                 Button(t("Done")) { state.sheet = nil }
             }
         }
@@ -333,21 +364,25 @@ struct PermissionsSheet: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                if row.status != .granted {
-                    Text(row.permission.settingsHint)
+                if row.status == .unknown, let why = row.permission.unknownHint {
+                    Text(why)
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer(minLength: 8)
             if row.status != .granted {
-                Button(t("Request")) { state.requestPermission(row.permission) }
+                Button(t("Open System Settings")) { state.openPermissionSettings(row.permission) }
                     .controlSize(.small)
                     .disabled(row.checking)
+                    .help(row.permission.settingsHint)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+        /* 完整说明（为什么需要 / 覆盖什么 / 系统设置里怎么走）全进悬停：界面那一行只留一句话。 */
+        .help(row.permission.help + "\n" + row.permission.settingsHint)
     }
 
     @ViewBuilder
@@ -579,6 +614,21 @@ struct ResultSheet: View {
                     .foregroundStyle(.orange)
                     .lineLimit(2)
                     .help(failures.map { "\($0.reason) —— \(Format.short($0.path))" }.joined(separator: "\n"))
+            }
+
+            /* 冷启动复核：同一套扫描再找一遍的结果（没勾的 / 跳过的 / 删失败的都算「还在」）。 */
+            if removed > 0 {
+                let leftovers = outcome?.perApp.flatMap { $0.leftoversAfter } ?? []
+                if leftovers.isEmpty {
+                    Text(t("Re-scan: nothing else belonging to it is left on disk."))
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.green)
+                } else {
+                    Text(t("Re-scan: %d more items are still on disk (not in this run's list).", leftovers.count))
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.orange)
+                        .help(leftovers.map { Format.short($0) }.joined(separator: "\n"))
+                }
             }
 
             HStack(spacing: 8) {

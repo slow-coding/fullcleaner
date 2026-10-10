@@ -10,8 +10,8 @@ Dragging an app to the Trash deletes `/Applications/Foo.app`. The rest stays: sa
 
 - **Scan**: reads every installed app (bundle id, size, last opened, launch count, how many leftovers it has).
 - **Plan**: matches leftovers to the app using evidence, not guesses (see [Safety](#safety)).
-- **Remove**: moves items to the Trash, resets the app's permission records, unloads its launch agents, and logs every path with its Trash location.
-- **Verify**: after removal it re-checks each path and reports what survived instead of claiming success.
+- **Remove**: moves items to the Trash, resets the app's permission records, unloads its launch agents, unregisters it from Launch Services, and logs every path with its Trash location.
+- **Verify**: after removal it re-checks each path, then re-scans the same evidence and reports anything still on disk instead of claiming success.
 
 Two ways to use it: a small GUI (multi-select, table with columns) and the same binary as a CLI.
 
@@ -77,20 +77,24 @@ Every string lives in one table (`src/Strings.swift`: English as the key, Chines
 
 ## Permissions
 
-The app opens a **Permissions** panel on first launch (and any time from the button in the header — a green dot means everything is granted). Each row shows its own state: a green check when granted, an orange marker plus a one-click **去申请 / Request** button when not. No permission is ever requested by surprise in the middle of a scan.
+The app opens a **Permissions** panel on first launch (and any time from the button in the header — a green dot means everything is granted). There are only two switches, and **both are required**: without them an uninstall would leave leftovers behind, so the app sends you to the panel instead of doing half the job.
 
 | Permission | Why it is needed |
 | --- | --- |
-| **Full Disk Access** | Read inside other apps' containers — that is how a folder named after an app is verified to actually belong to it, and how leftover sizes are measured. |
-| **Files and Folders** (Music / Movies / Pictures / Documents / iCloud Drive) | Covered by Full Disk Access: with it, macOS stops asking; without it, FullCleaner skips those locations entirely instead of triggering a dialog. |
+| **Full Disk Access** | Read inside other apps' containers — that is how a folder named after an app is verified to actually belong to it, and how leftover sizes are measured. It also covers Music / Movies / Pictures / Documents / iCloud Drive; without it those locations are skipped entirely instead of triggering a dialog. |
 | **App Management** | Move another app's bundle to the Trash. Since macOS 13, modifying a bundle you do not own requires it. |
 
-It does **not** ask for Accessibility or Input Monitoring: it never simulates keystrokes and never reads what you type.
+Each row carries one button, **Open System Settings**, which jumps straight to the right pane. Two things the panel spells out because macOS makes them non-obvious:
+
+- **No switch in the list?** macOS only shows a toggle for apps that have been added. Drag FullCleaner in from Applications (or click **+**), then flip the switch.
+- **Granted but still not green?** TCC caches the decision per process. If the panel waits 20 seconds without seeing the change, it offers **Restart FullCleaner**.
+
+It does **not** ask for Accessibility or Input Monitoring: it never simulates keystrokes and never reads what you type. Administrator actions (system-level leftovers, package receipts) are collected into a single batch, so a run costs one password prompt — not one per app.
 
 Without Full Disk Access the tool still works, it just knows less: iCloud Drive is not scanned, container sizes show as `—`, and container contents are left alone (that is where macOS would otherwise prompt).
 
 ```sh
-fullcleaner --permissions          # status of all three rows, exit code 0 when the real grants are in place
+fullcleaner --permissions          # status of both rows, exit code 0 when the real grants are in place
 ```
 
 ![Permissions panel](docs/screenshot-permissions.png)
@@ -126,7 +130,7 @@ Set `SIGN_IDENTITY="Developer ID Application: …"` to sign with a real certific
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Matching, gates, permissions, sorting, removal, logging | `fullcleaner --selftest` | **72 assertions**, run inside a temp sandbox (fake apps, fake leftovers, fake `/Library`); includes "every deleted path is inside the sandbox" and "paths with quotes and spaces are deleted correctly, nothing else is" |
+| Matching, gates, permissions, sorting, removal, logging | `fullcleaner --selftest` | **79 assertions**, run inside a temp sandbox (fake apps, fake leftovers, fake `/Library`); includes "every deleted path is inside the sandbox" and "paths with quotes and spaces are deleted correctly, nothing else is" |
 | No network | `./tools/offline-test.sh` | source scan, `otool -L` / `nm -u` / `strings` on the binary, and a live `lsof` sample during a real scan → 0 connections |
 | Release hygiene | `./tools/release-audit.sh` | 40 checks: personal info, secrets, license, repo hygiene, build, runtime safety, docs, publish prerequisites, full git history |
 | UI layout | `--render`, `--render-review`, `--render-permissions`, `--render-result` | renders the interface to PNG offscreen, no screen-recording permission needed → `docs/screenshot-*.png` |

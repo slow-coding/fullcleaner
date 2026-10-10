@@ -248,6 +248,14 @@ enum CLI {
             for note in result.notes { print("  · \(note)") }
             for failure in result.failures { print("  · " + t("left alone: %@ (%@)", failure.reason, Format.short(failure.path))) }
         }
+        /* 冷启动复核：同一套扫描再找一遍（没勾的 / 拿不准的 / 删失败的一并算「还在」）。 */
+        let leftovers = outcome.perApp.flatMap { $0.leftoversAfter }
+        if leftovers.isEmpty {
+            print(t("Re-scan: nothing else belonging to it is left on disk."))
+        } else {
+            print(t("Re-scan: %d more items are still on disk (not in this run's list).", leftovers.count))
+            for path in leftovers { print("  · \(Format.short(path))") }
+        }
         print(t("Log: %@", outcome.logPath))
         return outcome.allFailures.isEmpty ? 0 : 1
     }

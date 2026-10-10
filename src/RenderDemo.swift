@@ -78,11 +78,10 @@ enum RenderDemo {
         let state = demoState()
         state.permissionRows = [
             PermissionRow(permission: .fullDiskAccess, status: .granted),
-            PermissionRow(permission: .filesAndFolders, status: .granted),
             PermissionRow(permission: .appManagement, status: .missing, checking: true),
         ]
         state.sheet = .permissions
-        return render(AnyView(PermissionsSheet(state: state)), width: 580, height: 320, to: path)
+        return render(AnyView(PermissionsSheet(state: state)), width: 580, height: 260, to: path)
     }
 
     @MainActor

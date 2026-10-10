@@ -25,6 +25,8 @@ struct AppOutcome {
     var removedBytes: Int64 = 0
     var failures: [Rejection] = []
     var notes: [String] = []
+    /// 卸完之后复扫到、但这次没动的东西（计划外 / 没勾 / 被跳过）—— 冷启动复核用。
+    var leftoversAfter: [String] = []
 }
 
 struct Outcome {
@@ -137,6 +139,10 @@ enum Remover {
         var outcome = Outcome()
         let byApp = Dictionary(grouping: items, by: { $0.appPath })
         let appByPath = Dictionary(uniqueKeysWithValues: apps.map { ($0.path, $0) })
+        /* 需要管理员的条目**跨应用攒一批**：整轮只弹一次密码框（用户 2026-10-10：「管理员的给一次
+           就行了」；以前是按应用各跑一次 osascript，选三个应用就弹三回）。 */
+        var pendingPrivileged: [(PlanItem, AppItem)] = []
+        var resultIndexByPath: [String: Int] = [:]
 
         let logFile = Paths.logDirectory + "/" + timestamp() + "-uninstall.jsonl"
         var records: [RemovalRecord] = []
@@ -165,11 +171,16 @@ enum Remover {
             // 2. 权限记录（要在删文件之前做，删完就找不到包内的子程序 id 了）
             result.notes.append(contentsOf: resetPermissions(app, onStep: onStep))
 
-            // 3. 删除：能进废纸篓的进废纸篓，需要管理员的攒批
-            var privileged: [PlanItem] = []
+            // 2b. 从 LaunchServices 里注销：光把 .app 拖进废纸篓，系统还记着它（打开方式、
+            //     默认应用、图标缓存里那条）—— 冷启动水平要连这条记录一起清。
+            if unregisterFromLaunchServices(app) {
+                result.notes.append(t("Unregistered from Launch Services"))
+            }
+
+            // 3. 删除：能进废纸篓的进废纸篓；需要管理员的攒到整轮最后一批（只弹一次密码框）
             for item in appItems {
                 if item.kind == .packageReceipt || item.needsAdmin {
-                    privileged.append(item)
+                    pendingPrivileged.append((item, app))
                     continue
                 }
                 if let failure = trashOne(item, records: &records, app: app) {
@@ -180,24 +191,57 @@ enum Remover {
                 result.removedBytes += item.bytes
             }
 
-            if !privileged.isEmpty {
-                onStep?("需要管理员权限：\(privileged.count) 项（可能会弹一次密码框）")
-                let (failures, removed) = privilegedBatch(privileged, app: app, records: &records)
-                result.failures.append(contentsOf: failures)
-                result.removedCount += removed.count
-                result.removedBytes += removed.reduce(Int64(0)) { $0 + $1.bytes }
-            }
-
-            // 4. 复核：清单里每条都再看一眼
+            // 4. 复核：清单里每条都再看一眼（等管理员那批的条目押后，batch 之后再一起看）
             for item in appItems {
+                guard item.kind != .packageReceipt, !item.needsAdmin else { continue }
                 let stillThere = FileManager.default.fileExists(atPath: item.path)
-                if stillThere, item.kind != .packageReceipt,
+                if stillThere,
                    !result.failures.contains(where: { $0.path == item.path }) {
                     result.failures.append(Rejection(path: item.path, appName: app.name,
                                                      reason: t("Still there after deletion"), gate: t("Verification")))
                 }
             }
+            resultIndexByPath[app.path] = outcome.perApp.count
             outcome.perApp.append(result)
+        }
+
+        if !pendingPrivileged.isEmpty {
+            onStep?(t("Administrator actions: %d items (one prompt for the whole run)", pendingPrivileged.count))
+            let (batchFailures, removed) = privilegedBatch(pendingPrivileged, records: &records)
+            var failures = batchFailures
+            var failedPaths = Set(failures.map { $0.path })
+            /* 管理员删掉的那些也要复核：还在就如实记失败，不写成成功。 */
+            for item in removed where item.kind != .packageReceipt && !failedPaths.contains(item.path) {
+                if FileManager.default.fileExists(atPath: item.path) {
+                    let name = pendingPrivileged.first { $0.0.path == item.path }?.1.name ?? ""
+                    failures.append(Rejection(path: item.path, appName: name,
+                                              reason: t("Still there after deletion"), gate: t("Verification")))
+                    failedPaths.insert(item.path)
+                }
+            }
+            for failure in failures {
+                guard let path = pendingPrivileged.first(where: { $0.0.path == failure.path })?.1.path,
+                      let index = resultIndexByPath[path] else { continue }
+                outcome.perApp[index].failures.append(failure)
+            }
+            for item in removed where !failedPaths.contains(item.path) {
+                guard let index = resultIndexByPath[item.appPath] else { continue }
+                outcome.perApp[index].removedCount += 1
+                outcome.perApp[index].removedBytes += item.bytes
+            }
+        }
+
+        /* 冷启动复核：按同一套扫描再找一遍。计划外还留在盘上的（没勾的、被跳过的、删失败的）
+           如实报出来 —— 用户 2026-10-10：「删除之后要达到冷启动的水平」。
+           过滤两样：本来就归到「跳过」的（名字像但没有证据的，从没打算删），和已经报过失败的。 */
+        let skippedPaths = Set(skipped.map { $0.path })
+        for index in outcome.perApp.indices {
+            guard let app = apps.first(where: { $0.path == outcome.perApp[index].appPath }) else { continue }
+            let still = ResidueScanner.residues(for: app, measure: false)
+                .map { $0.path }
+                .filter { !skippedPaths.contains($0) && FileManager.default.fileExists(atPath: $0) }
+                .filter { path in !outcome.perApp[index].failures.contains(where: { $0.path == path }) }
+            outcome.perApp[index].leftoversAfter = still
         }
 
         // 写日志：清单 + 结果，含废纸篓里的落点
@@ -210,6 +254,17 @@ enum Remover {
         outcome.logPath = logFile
         _ = appByPath
         return outcome
+    }
+
+    /// 从 LaunchServices 里注销（打开方式 / 默认应用 / 图标缓存里那条记录）。
+    /// 自检里跳过（样本目录不是真的应用注册表）。
+    @discardableResult
+    static func unregisterFromLaunchServices(_ app: AppItem) -> Bool {
+        guard !Sandbox.isSelfTest else { return false }
+        let tool = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+        guard FileManager.default.fileExists(atPath: tool) else { return false }
+        let (status, _) = Shell.run(tool, ["-u", app.path], timeout: 20)
+        return status == 0
     }
 
     /// 移到废纸篓。失败就返回原因（不改用强删——拿不准就不动）。
@@ -229,11 +284,11 @@ enum Remover {
         return nil
     }
 
-    /// 需要管理员的条目：攒成一个脚本，跑一次（只弹一次密码框）。
-    private static func privilegedBatch(_ items: [PlanItem], app: AppItem,
+    /// 需要管理员的条目：攒成一个脚本，**整轮跑一次**（只弹一次密码框）。
+    private static func privilegedBatch(_ pairs: [(PlanItem, AppItem)],
                                         records: inout [RemovalRecord]) -> (failures: [Rejection], removed: [PlanItem]) {
         var script = "#!/bin/sh\n"
-        for item in items {
+        for (item, _) in pairs {
             if item.kind == .packageReceipt {
                 if Sandbox.isSelfTest { continue }   // 自检不碰真的 pkgutil 收据
                 script += "if /usr/sbin/pkgutil --forget \(shellQuote(item.path)) >/dev/null 2>&1; then echo \"OK|\(marker(item))\"\n"
@@ -268,7 +323,7 @@ enum Remover {
 
         var failures: [Rejection] = []
         var removed: [PlanItem] = []
-        for item in items {
+        for (item, app) in pairs {
             let key = marker(item)
             let why = status == 0 ? t("the command failed") : (status == -1 ? t("the administrator prompt was not granted (maybe cancelled)") : t("the command failed"))
             if succeeded.contains(key) {

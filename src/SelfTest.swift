@@ -168,13 +168,17 @@ enum SelfTest {
 
     private static func checkPermissions() {
         section("权限")
-        check(Permission.allCases.count == 3, "面板三项：完全磁盘访问、文件与文件夹（由前者覆盖）、App 管理")
-        check(Permissions.all().allSatisfy { !$0.permission.purpose.isEmpty }, "每项都写了用途")
+        check(Permission.allCases.count == 2, "面板两项：完全磁盘访问、App 管理")
+        check(Permissions.all().allSatisfy { !$0.permission.purpose.isEmpty && !$0.permission.help.isEmpty },
+              "每项都有界面那一句 + 悬停说明")
         check(Permissions.all().allSatisfy { $0.permission.settingsURL.hasPrefix("x-apple.systempreferences:") },
               "每项都能一键打开系统设置里对应的那一页")
+        check(Permission.fullDiskAccess.help.contains("iCloud Drive"),
+              "「文件与文件夹」那行并进完全磁盘访问的悬停里（覆盖范围不许丢）")
         check(Permissions.status(.fullDiskAccess) == .missing, "样本环境读不到权限数据库 → 完全磁盘访问判为未授权")
-        check(Permissions.status(.filesAndFolders) == .missing, "文件与文件夹那一行跟着完全磁盘访问一起变化")
-        check(Permissions.status(.appManagement) == .unknown, "完全磁盘访问没给时，App 管理标为「检测不了」而不是乱猜")
+        check(Permissions.status(.appManagement) == .unknown && Permission.appManagement.unknownHint != nil,
+              "完全磁盘访问没给时，App 管理标为「检测不了」并写清为什么")
+        check(Permissions.relaunch() == false, "自检里不真重启")
     }
 
     // MARK: - 排序
@@ -329,6 +333,9 @@ enum SelfTest {
         let trashEntries = (try? FileManager.default.contentsOfDirectory(atPath: Paths.trash)) ?? []
         check(!trashEntries.isEmpty, "进废纸篓的条目在样本废纸篓里：\(trashEntries.count) 个")
         check(outcome.allFailures.isEmpty, "复核没有失败项（实际 \(outcome.allFailures.count)）")
+        let skippedPaths = Set(planned.skipped.map { $0.path })
+        check(outcome.perApp.allSatisfy { result in result.leftoversAfter.allSatisfy { skippedPaths.contains($0) } },
+              "冷启动复扫：只报计划外的（被跳过的那些），删掉的没被算成残留")
         // 注入检查：把带引号的路径交给批处理脚本，删对了、没误伤别处
         let trickyPath = Paths.system("/Library/Application Support/it's a \"test\"")
         let trickyItem = PlanItem(appPath: fake.path, appName: fake.name, path: trickyPath,

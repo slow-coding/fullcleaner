@@ -100,9 +100,16 @@ else
 RESULT=$(printf '%s' "$SELFTEST" | grep -oE '结果：[0-9]+ 通过 · [0-9]+ 失败' | tail -1)
 FAILED=$(printf '%s' "$RESULT" | grep -oE '[0-9]+ 失败' | grep -oE '^[0-9]+' || echo "")
 if [ -n "$RESULT" ] && [ "${FAILED:-1}" = "0" ]; then ok "自检通过：$RESULT"; else bad "自检没通过：${RESULT:-没拿到结果}"; fi
-printf '%s' "$SELFTEST" | grep -q '每一条都在样本目录里' && ok "自检里有「每条被删路径都在样本目录里」这条横断断言" || bad "缺这条断言"
+# printf 进 grep -q 会被 SIGPIPE 打断（grep 命中就退，printf 收 SIGPIPE，pipefail 把整条管道判失败）—— 用 case 匹配，不经管道。
+case "$SELFTEST" in
+  *"每一条都在样本目录里"*) ok "自检里有「每条被删路径都在样本目录里」这条横断断言" ;;
+  *) bad "缺这条断言" ;;
+esac
 # （下面两条同属自检结果，未构建时已在上面跳过）
-printf '%s' "$SELFTEST" | grep -q '带引号与空格的路径删对了' && ok "自检验证了删除路径的引号转义（不会误删）" || bad "缺注入转义断言"
+case "$SELFTEST" in
+  *"带引号与空格的路径删对了"*) ok "自检验证了删除路径的引号转义（不会误删）" ;;
+  *) bad "缺注入转义断言" ;;
+esac
 fi
 grep -q 'trashItem' src/Remover.swift && ok "默认走废纸篓（FileManager.trashItem）" || bad "没看到废纸篓路径"
 grep -q 'confirmed else' src/App.swift && ok "命令行卸载必须显式 --yes" || bad "命令行卸载没有 --yes 门"
@@ -125,7 +132,11 @@ for shot in $(grep -oE 'docs/[a-zA-Z0-9._-]+\.png' README.md | sort -u); do
 done
 [ "$MISSING" -eq 0 ] && ok "README 里引用的截图都存在" || bad "README 引用了不存在的截图"
 if [ "$BUILT" = "1" ]; then
-  ./build/$DISPLAY.app/Contents/MacOS/$NAME --help 2>&1 | grep -qE '用法|Usage' && ok "--help 有用法说明" || bad "--help 没有输出"
+  HELP=$(./build/$DISPLAY.app/Contents/MacOS/$NAME --help 2>&1 || true)
+  case "$HELP" in
+    *Usage*|*用法*) ok "--help 有用法说明" ;;
+    *) bad "--help 没有输出" ;;
+  esac
 else
   skip "--help：未构建，跳过"
 fi
@@ -138,7 +149,7 @@ if [ -d .git ]; then
   LOCAL_NAME=$(git config --local user.name 2>/dev/null || true)
   if [ -z "$LOCAL_ID" ]; then
     skip "本地没设仓库身份（提交作者沿用全局配置）；真正的门是下面那条「提交作者是否干净」"
-  elif printf '%s %s' "$LOCAL_NAME" "$LOCAL_ID" | grep -qE "$PRIVATE_PATTERN"; then
+  elif [[ "$LOCAL_NAME $LOCAL_ID" =~ $PRIVATE_PATTERN ]]; then
     bad "仓库身份像真实邮箱：${LOCAL_ID}（改成 GitHub 的 noreply 地址）"
   else
     ok "仓库身份不是个人邮箱：${LOCAL_NAME} <${LOCAL_ID}>"
