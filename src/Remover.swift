@@ -284,9 +284,14 @@ enum Remover {
         return nil
     }
 
+    /// 自检用：整轮跑了几次管理员批处理（用户 2026-10-10：「管理员的给一次就行了」——
+    /// 多个应用也要只跑一次，不能一个应用弹一次密码框）。
+    static var privilegedBatchRuns = 0
+
     /// 需要管理员的条目：攒成一个脚本，**整轮跑一次**（只弹一次密码框）。
     private static func privilegedBatch(_ pairs: [(PlanItem, AppItem)],
                                         records: inout [RemovalRecord]) -> (failures: [Rejection], removed: [PlanItem]) {
+        privilegedBatchRuns += 1
         var script = "#!/bin/sh\n"
         for (item, _) in pairs {
             if item.kind == .packageReceipt {

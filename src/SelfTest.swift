@@ -343,6 +343,25 @@ enum SelfTest {
         _ = Remover.execute(items: [trickyItem], apps: [fake])
         check(!FileManager.default.fileExists(atPath: trickyPath), "带引号与空格的路径删对了（转义有效）")
         check(FileManager.default.fileExists(atPath: root + "/decoy-keep.txt"), "没有误删别的东西")
+
+        // 管理员批处理：两个应用各带系统级条目，整轮只应跑一次脚本（结果还要分回各自的应用）
+        if let other = AppScanner.scan().first(where: { $0.bundleID == "com.example.unverified" }) {
+            let batchA = PlanItem(appPath: fake.path, appName: fake.name,
+                                  path: Paths.system("/Library/Application Support/batch-a"),
+                                  bytes: 5, kind: .systemLibrary, match: .exactID, needsAdmin: true, checked: true)
+            let batchB = PlanItem(appPath: other.path, appName: other.name,
+                                  path: Paths.system("/Library/Application Support/batch-b"),
+                                  bytes: 7, kind: .systemLibrary, match: .exactID, needsAdmin: true, checked: true)
+            write(batchA.path, "a")
+            write(batchB.path, "b")
+            let runsBefore = Remover.privilegedBatchRuns
+            let batched = Remover.execute(items: [batchA, batchB], apps: [fake, other])
+            check(!FileManager.default.fileExists(atPath: batchA.path) && !FileManager.default.fileExists(atPath: batchB.path),
+                  "两个应用的系统级条目一次脚本删掉")
+            check(Remover.privilegedBatchRuns - runsBefore == 1, "整轮只跑一次管理员批处理（只弹一次密码框）")
+            check(batched.perApp.first(where: { $0.appPath == other.path })?.removedCount == 1,
+                  "批处理的结果分回各自的应用（另一个应用也记了 1 项）")
+        }
         check(!logText.contains("Unverified"), "被拦下的目录没有出现在日志里")
         return logText.split(separator: "\n").compactMap { line -> String? in
             guard let data = line.data(using: .utf8),

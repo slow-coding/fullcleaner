@@ -130,7 +130,7 @@ Set `SIGN_IDENTITY="Developer ID Application: …"` to sign with a real certific
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Matching, gates, permissions, sorting, removal, logging | `fullcleaner --selftest` | **79 assertions**, run inside a temp sandbox (fake apps, fake leftovers, fake `/Library`); includes "every deleted path is inside the sandbox" and "paths with quotes and spaces are deleted correctly, nothing else is" |
+| Matching, gates, permissions, sorting, removal, logging | `fullcleaner --selftest` | **82 assertions**, run inside a temp sandbox (fake apps, fake leftovers, fake `/Library`); includes "every deleted path is inside the sandbox" and "paths with quotes and spaces are deleted correctly, nothing else is" |
 | No network | `./tools/offline-test.sh` | source scan, `otool -L` / `nm -u` / `strings` on the binary, and a live `lsof` sample during a real scan → 0 connections |
 | Release hygiene | `./tools/release-audit.sh` | 40 checks: personal info, secrets, license, repo hygiene, build, runtime safety, docs, publish prerequisites, full git history |
 | UI layout | `--render`, `--render-review`, `--render-permissions`, `--render-result` | renders the interface to PNG offscreen, no screen-recording permission needed → `docs/screenshot-*.png` |
