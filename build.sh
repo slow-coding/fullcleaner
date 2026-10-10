@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 
 NAME="fullcleaner"        # 可执行文件名、bundle id、命令行提示里用的小写名
 DISPLAY="FullCleaner"     # Finder 与界面上显示的名字
-VERSION="0.6.0"
+VERSION="0.6.1"
 BUILD="build"
 APP="$BUILD/$DISPLAY.app"
 DMG="$BUILD/$DISPLAY-$VERSION.dmg"
@@ -79,15 +79,16 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 if [ -n "${SIGN_IDENTITY:-}" ]; then
   codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP"
-  echo "  Developer ID 签名：$SIGN_IDENTITY（强化运行时 + 时间戳）"
+  echo "  Developer ID 签名：${SIGN_IDENTITY}（强化运行时 + 时间戳）"
 else
   # 本机自签身份（keychain 里名字带 FullCleaner 的代码签名证书）：TCC 授权按这个身份记账，
   # 重建 / 覆盖安装之后授权不会失效；没有就用 ad-hoc —— 那个每次构建 cdhash 都变，
   # 覆盖安装后系统设置里那条授权就对不上了（tccd 日志：Failed to match existing code requirement）。
-  LOCAL_SIGNER=$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/FullCleaner/ {print $2; exit}')
+  # 不带 -v：自签证书不被系统信任，属于正常（find-identity -v 只列「受信任」的，会把自签身份滤掉）。
+  LOCAL_SIGNER=$(security find-identity -p codesigning 2>/dev/null | awk -F'"' '/FullCleaner/ {print $2; exit}')
   if [ -n "$LOCAL_SIGNER" ]; then
     codesign --force --options runtime --sign "$LOCAL_SIGNER" "$APP"
-    echo "  本地自签身份：$LOCAL_SIGNER（重建后 TCC 授权仍然有效）"
+    echo "  本地自签身份：${LOCAL_SIGNER}（重建后 TCC 授权仍然有效）"
   else
     codesign --force --options runtime --sign - "$APP" 2>/dev/null
     echo "  ad-hoc 签名（本机自用；要分发给别人就跑 ./tools/release.sh）"

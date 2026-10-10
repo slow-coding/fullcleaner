@@ -180,6 +180,8 @@ enum SelfTest {
               "每项都能一键打开系统设置里对应的那一页")
         check(Permission.fullDiskAccess.help.contains("iCloud Drive"),
               "「文件与文件夹」那行并进完全磁盘访问的悬停里（覆盖范围不许丢）")
+        check(Permissions.fullDiskAccessProbes.contains { $0.hasPrefix("/private/var/containers/Data/ProtectedSystem") },
+              "完全磁盘访问的探针含 macOS 27 的新位置（旧权限库路径已不存在，只看它会误报未授权）")
         check(Permissions.status(.fullDiskAccess) == .missing, "样本环境读不到权限数据库 → 完全磁盘访问判为未授权")
         check(Permissions.status(.appManagement) == .unknown && Permission.appManagement.unknownHint != nil,
               "完全磁盘访问没给时，App 管理标为「检测不了」并写清为什么")

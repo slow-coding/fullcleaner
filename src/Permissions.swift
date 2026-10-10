@@ -92,11 +92,11 @@ enum Permissions {
     static func status(_ permission: Permission) -> PermissionStatus {
         switch permission {
         case .fullDiskAccess:
-            return canReadTCCDatabase() ? .granted : .missing
+            return fullDiskAccessState()
         case .appManagement:
-            // 权限数据库本身受完全磁盘访问保护；读不到就只能说不确定（行内会写清为什么）。
-            guard canReadTCCDatabase() else { return .unknown }
-            switch authValue(service: "kTCCServiceAppManagement") {
+            // 权限库本身受完全磁盘访问保护；读不到就只能说不确定（行内会写清为什么）。
+            guard fullDiskAccessState() == .granted, let database = userTCCDatabase() else { return .unknown }
+            switch authValue(database: database, service: "kTCCServiceAppManagement") {
             case 2: return .granted
             case 0: return .missing
             default: return .missing      // 数据库里没有记录 = 还没申请过
@@ -114,7 +114,7 @@ enum Permissions {
     /// 自检里用 FULLCLEANER_FAKE_FDA=1 模拟t("Granted")，好把两种分支都验到。
     static var fullDiskAccessGranted: Bool {
         if ProcessInfo.processInfo.environment["FULLCLEANER_FAKE_FDA"] == "1" { return true }
-        return canReadTCCDatabase()
+        return fullDiskAccessState() == .granted
     }
 
     /// 还差哪几项（主界面上提示用）。
@@ -164,26 +164,64 @@ enum Permissions {
 
     // MARK: - 探测细节
 
-    /// 用户权限数据库只有拿到完全磁盘访问才能读 —— 用它当探针。
-    static func canReadTCCDatabase() -> Bool {
-        readDatabase() != nil
+    /// 完全磁盘访问的探针表：**任一条读得到 → 有权限；全读不到但至少有一条在 → 没权限；
+    /// 一条都不在 → 判不了**。
+    ///
+    /// 为什么要一串而不是一个文件（2026-10-10，macOS 27 实测：用户报「权限都开了还显示未授权」）：
+    /// 用户权限库在 macOS 27 从 `~/Library/Application Support/com.apple.TCC/TCC.db` 挪进了
+    /// `/private/var/containers/Data/ProtectedSystem/<UUID>/Data/…` —— 旧路径直接不存在，读它
+    /// 一律 ENOENT，只看旧路径就会把「已经授权」一律报成没授权。这台机器上 `head` 过旧路径：
+    /// No such file or directory；而下面这几条在没授权时都是「Operation not permitted」。
+    static let fullDiskAccessProbes = [
+        Paths.home + "/Library/Application Support/com.apple.TCC/TCC.db",   // macOS ≤ 26 的用户权限库
+        "/private/var/containers/Data/ProtectedSystem",                     // macOS 27+：保护容器（列目录就要权限）
+        Paths.home + "/Library/Messages/chat.db",                           // 信息库
+        Paths.home + "/Library/Safari/Bookmarks.plist",                     // Safari 数据
+        Paths.home + "/Library/Mail",                                       // 邮件数据
+    ]
+
+    /// 真探针（不看自检的 FULLCLEANER_FAKE_FDA）：面板与状态判定走它。
+    static func fullDiskAccessState() -> PermissionStatus {
+        var sawDenied = false
+        for path in fullDiskAccessProbes {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else { continue }
+            if canRead(path, isDirectory: isDirectory.boolValue) { return .granted }
+            sawDenied = true
+        }
+        return sawDenied ? .missing : .unknown
     }
 
-    private static func readDatabase() -> Data? {
-        let path = Paths.home + "/Library/Application Support/com.apple.TCC/TCC.db"
-        guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
+    /// 读一小段 / 列一眼目录：能读就是有权限（不修改任何东西）。
+    private static func canRead(_ path: String, isDirectory: Bool) -> Bool {
+        if isDirectory {
+            return (try? FileManager.default.contentsOfDirectory(atPath: path)) != nil
+        }
+        guard let handle = FileHandle(forReadingAtPath: path) else { return false }
         defer { try? handle.close() }
-        return handle.readData(ofLength: 64)
+        return (try? handle.read(upToCount: 16)) != nil
     }
 
-    /// 从权限数据库里查一项服务的授权值：2 = 允许，0 = 拒绝，没有记录 = nil。
-    private static func authValue(service: String) -> Int? {
-        let path = Paths.home + "/Library/Application Support/com.apple.TCC/TCC.db"
-        guard FileManager.default.fileExists(atPath: path) else { return nil }
+    /// 用户权限库的位置：macOS 27 起搬进了 ProtectedSystem（旧路径不存在，所以两个位置都找）。
+    static func userTCCDatabase() -> String? {
+        let legacy = Paths.home + "/Library/Application Support/com.apple.TCC/TCC.db"
+        if FileManager.default.fileExists(atPath: legacy) { return legacy }
+        let root = "/private/var/containers/Data/ProtectedSystem"
+        guard let containers = try? FileManager.default.contentsOfDirectory(atPath: root) else { return nil }
+        for container in containers.sorted() {
+            let candidate = root + "/" + container + "/Data/Library/Application Support/com.apple.TCC/TCC.db"
+            if FileManager.default.fileExists(atPath: candidate) { return candidate }
+        }
+        return nil
+    }
+
+    /// 从权限库里查一项服务的授权值：2 = 允许，0 = 拒绝，没有记录 = nil。
+    private static func authValue(database: String, service: String) -> Int? {
+        guard FileManager.default.fileExists(atPath: database) else { return nil }
         let bundleID = Bundle.main.bundleIdentifier ?? "local.fullcleaner"
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-        process.arguments = [path,
+        process.arguments = [database,
                              "select auth_value from access where service='\(service)' and client='\(bundleID)' limit 1;"]
         let pipe = Pipe()
         process.standardOutput = pipe
